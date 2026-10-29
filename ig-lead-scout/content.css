@@ -1,0 +1,1598 @@
+.igx-badge-wrap {
+  position: absolute;
+  /* ВАЖНО: кнопка вынесена ЗА пределы аватарки (влево-вниз), в щель между строками.
+     Раньше она лежала на углу авы и съедала клики по ней: юзер кликал открыть профиль,
+     попадал по кнопке — и вместо профиля открывался ТГ / запускалась проверка. */
+  bottom: -9px;
+  left: -9px;
+  right: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  pointer-events: auto;
+}
+
+.igx-bolt {
+  min-width: 16px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(18, 18, 18, 0.92);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+  font-size: 9px;
+  line-height: 13px;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  transition: transform 0.15s, background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
+  user-select: none;
+}
+.igx-bolt:hover {
+  background: rgba(0, 0, 0, 0.98);
+  transform: scale(1.25);
+}
+.igx-bolt.is-tg {
+  border-color: #00ff37;
+  background: rgba(15, 65, 28, 0.95);
+  box-shadow: 0 0 8px rgba(63, 209, 94, 0.45);
+}
+.igx-bolt.is-no-tg {
+  border-color: #ff0000;
+  background: rgba(75, 20, 20, 0.95);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.35);
+}
+/* TG доказанно жив: ревизия через превью t.me подтвердила личный аккаунт (tgReal === true).
+   Золото — высшая ступень доказательности; повторный клик открывает [чек тг фулл] / [чек тг сайт]. */
+.igx-bolt.is-tg.is-verified {
+  border-color: #ffd400;
+  box-shadow: 0 0 10px rgba(255, 212, 0, 0.55);
+}
+/* Ссылка на TG есть, но её реальность ещё не проверялась (до профиля не дошла
+   «Ревизия TG»): ❔, пунктир — чтобы не притворялась ни зелёной, ни красной. */
+.igx-bolt.is-tg.is-unknown {
+  border-color: #d8c07a;
+  border-style: dashed;
+  background: rgba(62, 56, 22, 0.95);
+  box-shadow: 0 0 6px rgba(216, 192, 122, 0.32);
+}
+.igx-bolt.is-pending {
+  border-color: #5b8dd6;
+  background: rgba(20, 50, 85, 0.95);
+  animation: igx-pulse 1s infinite;
+}
+
+@keyframes igx-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.92); }
+}
+
+/* Подсветка всей строки профиля в списке / модалке */
+/* Важно: нигде не используем order — перестановка строк ломает виртуальный
+   список Instagram (строки прыгают / пропадают). Только подсветка цветом. */
+/* 1. Зелёный (Подходящий лидер: есть TG + подходит под фильтр) */
+.igx-row-tg {
+  background-color: rgba(63, 209, 94, 0.18) !important;
+  border-left: 5px solid #3fd15e !important;
+  border-radius: 8px !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.igx-row-tg:hover {
+  background-color: rgba(63, 209, 94, 0.28) !important;
+}
+
+/* 2. Синий (Проверен: без TG, либо не подошёл по подписчикам, либо посещён) */
+.igx-row-checked,
+.igx-row-visited {
+  background-color: rgba(91, 141, 214, 0.12) !important;
+  border-left: 5px solid #5b8dd6 !important;
+  border-radius: 8px !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.igx-row-checked:hover,
+.igx-row-visited:hover {
+  background-color: rgba(91, 141, 214, 0.20) !important;
+}
+
+/* 3. Пульсация во время проверки — строка остаётся на своём месте */
+.igx-row-pending {
+  background-color: rgba(91, 141, 214, 0.22) !important;
+  border-left: 5px solid #5b8dd6 !important;
+  border-radius: 8px !important;
+  animation: igx-row-pulse 1.5s infinite;
+}
+
+@keyframes igx-row-pulse {
+  0%, 100% { background-color: rgba(91, 141, 214, 0.14); }
+  50% { background-color: rgba(91, 141, 214, 0.28); }
+}
+
+.igx-tooltip {
+  position: fixed;
+  display: none;
+  background: #262626;
+  color: #fafafa;
+  border: 1px solid #3d3d3d;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  z-index: 2147483647;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Боковая плавающая панель фильтров и управления */
+.igx-side-panel {
+  position: fixed;
+  width: 260px;
+  background: #1c1c1c;
+  border: 1px solid #383838;
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.85);
+  color: #fafafa;
+  z-index: 2147483640;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  box-sizing: border-box;
+  animation: igx-panel-appear 0.2s ease-out;
+}
+
+@keyframes igx-panel-appear {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.igx-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #2e2e2e;
+  padding-bottom: 8px;
+}
+/* Шапка панели — ручка перетаскивания */
+.igx-side-head.igx-draggable {
+  cursor: grab;
+}
+.igx-side-panel.is-dragging {
+  cursor: grabbing;
+  opacity: 0.92;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.95);
+}
+.igx-side-panel.is-dragging .igx-side-head.igx-draggable {
+  cursor: grabbing;
+}
+.igx-pos-reset {
+  background: transparent;
+  border: 1px solid #3a3a3a;
+  color: #888;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1;
+  padding: 3px 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.igx-pos-reset:hover {
+  color: #fff;
+  border-color: #666;
+}
+.igx-side-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.igx-side-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.igx-side-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.igx-side-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.igx-btn-autocheck {
+  width: 100%;
+  background: #0095f6;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 0.15s, transform 0.1s;
+  box-sizing: border-box;
+  user-select: none;
+}
+.igx-btn-autocheck:hover {
+  background: #1877f2;
+}
+.igx-btn-autocheck.is-running {
+  background: #dc2626;
+}
+.igx-btn-autocheck.is-running:hover {
+  background: #b91c1c;
+}
+
+/* АФК-режим: мелкая галочка + поле слова поиска */
+.igx-afk-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.igx-afk-chk {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #bbb;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+}
+.igx-afk-chk:hover {
+  color: #fff;
+}
+.igx-afk-chk input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #c084fc;
+}
+.igx-afk-word {
+  flex: 1;
+  min-width: 0;
+  background: #121212;
+  border: 1px solid #404040;
+  border-radius: 5px;
+  color: #fff;
+  padding: 4px 7px;
+  font-size: 11.5px;
+  outline: none;
+}
+.igx-afk-word:focus {
+  border-color: #c084fc;
+}
+.igx-autoopen-chk {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #bbb;
+  cursor: pointer;
+  user-select: none;
+}
+.igx-autoopen-chk:hover {
+  color: #fff;
+}
+.igx-autoopen-chk input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #38bdf8;
+}
+
+.igx-side-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.igx-filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: #242424;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 6px 9px;
+  cursor: pointer;
+  font-size: 11.5px;
+  color: #eee;
+  user-select: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.igx-filter-chip:hover {
+  background: #2c2c2c;
+}
+.igx-filter-chip input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #0095f6;
+}
+.igx-filter-chip.chip-tg { border-left: 3.5px solid #3fd15e; }
+.igx-filter-chip.chip-no-tg { border-left: 3.5px solid #ef4444; }
+.igx-filter-chip.chip-un { border-left: 3.5px solid #888; }
+.igx-filter-chip.chip-vis { border-left: 3.5px solid #5b8dd6; }
+
+.igx-side-input-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: #bbb;
+  background: #242424;
+  padding: 6px 9px;
+  border-radius: 6px;
+  border: 1px solid #333;
+}
+.igx-side-input-row input[type="number"] {
+  width: 90px;
+  background: #121212;
+  border: 1px solid #404040;
+  border-radius: 5px;
+  color: #fff;
+  padding: 4px 7px;
+  font-size: 11.5px;
+  outline: none;
+  text-align: right;
+}
+.igx-side-input-row input[type="number"]:focus {
+  border-color: #0095f6;
+}
+
+.igx-side-stats {
+  background: #141414;
+  border: 1px solid #282828;
+  border-radius: 7px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #aaa;
+}
+
+.igx-side-buttons {
+  display: flex;
+  gap: 6px;
+}
+.igx-btn-csv {
+  flex: 1;
+  background: #1e3a24;
+  color: #4ade80;
+  border: 1px solid #166534;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.igx-btn-csv:hover {
+  background: #254d2f;
+}
+.igx-btn-reset {
+  background: #262626;
+  color: #aaa;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.igx-btn-reset:hover {
+  color: #fff;
+  background: #333;
+}
+
+/* ---------- меню TG-ссылок у авы (1 клик по ⚡, ссылок несколько) ---------- */
+.igx-link-menu {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 190px;
+  max-width: 260px;
+  background: #1c1c1c;
+  border: 1px solid #383838;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85);
+  padding: 10px;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.igx-link-menu-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 2px;
+}
+.igx-link-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #242424;
+  border: 1px solid #333;
+  border-radius: 7px;
+  padding: 7px 10px;
+  cursor: pointer;
+  color: #eee;
+  font-size: 12px;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+  user-select: none;
+}
+.igx-link-btn:hover {
+  background: #2e2e2e;
+  border-color: #555;
+}
+.igx-link-btn.is-personal {
+  border-left: 3.5px solid #ffd400;
+}
+.igx-link-btn.is-channel {
+  border-left: 3.5px solid #5b8dd6;
+}
+.igx-link-kind {
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: 11px;
+}
+.igx-link-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #7cc5ff;
+}
+
+/* ---------- АНАЛИЗАТОР ПРОФИЛЯ (плавающее меню) ---------- */
+.igx-pa-pop {
+  position: fixed;
+  z-index: 2147483646;
+  display: none;
+  flex-direction: column;
+  top: 70px;
+  left: 24px;
+  width: 360px;
+  max-width: calc(100vw - 20px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  box-sizing: border-box !important;
+  padding: 14px 16px;
+  background: #0f141a;
+  border: 1px solid #2c3440;
+  border-radius: 12px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.7);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #e7edf3;
+  touch-action: none;
+}
+.igx-pa-pop * {
+  box-sizing: border-box !important;
+}
+.igx-pa-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  cursor: grab;
+  user-select: none;
+}
+.igx-pa-pop.is-dragging .igx-pa-head {
+  cursor: grabbing;
+}
+.igx-pa-close {
+  background: none;
+  border: none;
+  color: #8fa3b8;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.igx-pa-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+.igx-pa-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #aebbc9;
+}
+.igx-pa-field input {
+  width: 64px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e7edf3;
+  background: #1a2129;
+  border: 1px solid #37424f;
+  border-radius: 6px;
+  outline: none;
+  text-align: center;
+}
+/* Матрица «что разбирать — по типу публикации»: группа галок в своей рамке, чтобы
+   было видно — это один блок настроек, а не четыре случайные галки подряд. */
+.igx-pa-matrix {
+  margin: 0 0 10px;
+  padding: 8px 9px 7px;
+  border: 1px solid #2b3543;
+  border-radius: 8px;
+  background: rgba(56, 189, 248, 0.04);
+}
+.igx-pa-matrix-cap {
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #7dd3fc;
+}
+.igx-pa-chk input[type="checkbox"] {
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
+.igx-pa-matrix-hint {
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: #7d8fa3;
+}
+.igx-pa-matrix-hint:empty {
+  display: none;
+}
+/* Цена прогона вслух: сколько запросов уйдёт в облако и сколько это минут. */
+.igx-pa-cost {
+  margin: -4px 0 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #8fa3b8;
+}
+.igx-pa-cost.warn {
+  color: #f0b429;
+}
+.igx-pa-chk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #aebbc9;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+.igx-pa-run {
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #052015;
+  background: #34d399;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.igx-pa-run:hover {
+  background: #6ee7b7;
+}
+.igx-pa-run:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.igx-pa-status {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #8fa3b8;
+  min-height: 16px;
+  line-height: 1.35;
+  user-select: text;
+}
+.igx-pa-result-wrap {
+  margin-top: 10px;
+}
+.igx-pa-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #aebbc9;
+  margin-bottom: 6px;
+}
+.igx-pa-copy-btn {
+  background: #1a2129;
+  border: 1px solid #37424f;
+  color: #e7edf3;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.igx-pa-copy-btn:hover {
+  background: #252e39;
+}
+.igx-pa-result-text {
+  width: 100%;
+  background: #0b0f14;
+  border: 1px solid #2c3440;
+  border-radius: 8px;
+  color: #d7e2ec;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 8px;
+  resize: vertical;
+  font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+}
+/* Поле настройки горячей клавиши заметки: инпут тянется, кнопка «задать» компактна. */
+.igx-pa-notekey-row input.igx-pa-notekey {
+  width: auto;
+  flex: 1;
+  min-width: 90px;
+  text-align: left;
+}
+.igx-pa-notekey-set {
+  background: #1a2129;
+  border: 1px solid #37424f;
+  color: #e7edf3;
+  font-size: 11px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.igx-pa-notekey-set:hover {
+  background: #252e39;
+}
+/* Плавающее поле «дополнение к разбору»: свой узел на body, фиолетовый акцент,
+   чуть выше слоя панели, чтобы не перекрывалось. Живёт всё время открытого профиля. */
+.igx-pa-note {
+  position: fixed;
+  z-index: 2147483647;
+  top: 120px;
+  left: 404px;
+  width: 320px;
+  max-width: calc(100vw - 20px);
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  background: #0f141a;
+  border: 1px solid #a855f7;
+  border-radius: 12px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.7);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #e7edf3;
+  touch-action: none;
+}
+.igx-pa-note.is-on {
+  display: flex;
+}
+.igx-pa-note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #e9d5ff;
+  cursor: grab;
+  user-select: none;
+}
+.igx-pa-note-close {
+  background: none;
+  border: none;
+  color: #8fa3b8;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.igx-pa-note-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+.igx-pa-note-sub {
+  font-size: 10px;
+  line-height: 1.35;
+  color: #8fa3b8;
+}
+.igx-pa-note-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.igx-pa-note-list:empty {
+  display: none;
+}
+.igx-pa-note-item {
+  font-size: 11px;
+  line-height: 1.35;
+  color: #d7e2ec;
+  background: #141b22;
+  border: 1px solid #2c3440;
+  border-left: 3px solid #a855f7;
+  border-radius: 6px;
+  padding: 6px 8px;
+  white-space: pre-wrap;
+}
+.igx-pa-note textarea {
+  width: 100%;
+  background: #0b0f14;
+  border: 1px solid #37424f;
+  border-radius: 8px;
+  color: #e7edf3;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 8px;
+  resize: vertical;
+  font-family: inherit;
+}
+.igx-pa-note-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.igx-pa-note-hint {
+  font-size: 10px;
+  color: #7d8fa3;
+}
+.igx-pa-note-send {
+  background: #a855f7;
+  border: none;
+  color: #160a22;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.igx-pa-note-send:hover {
+  background: #c084fc;
+}
+
+/* ---------- живое меню настроек АФК ---------- */
+.igx-afk-pop {
+  position: fixed;
+  z-index: 2147483646;
+  display: none;
+  flex-direction: column;
+  top: 70px;
+  right: 24px;
+  width: 320px;
+  max-width: calc(100vw - 20px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  box-sizing: border-box !important;
+  padding: 12px 14px;
+  background: #0f141a;
+  border: 1px solid #2c3440;
+  border-radius: 12px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.7);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #e7edf3;
+  touch-action: none;
+}
+.igx-afk-pop * {
+  box-sizing: border-box !important;
+}
+.igx-afk-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  cursor: grab;
+  user-select: none;
+}
+.igx-afk-close {
+  background: none;
+  border: none;
+  color: #8fa3b8;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.igx-afk-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+.igx-afk-note {
+  font-size: 11px;
+  color: #7f8ea0;
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+.igx-afk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #aebbc9;
+}
+.igx-afk-row > span {
+  flex: 0 0 auto;
+}
+.igx-afk-row select,
+.igx-afk-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: #e7edf3;
+  background: #1a2129;
+  border: 1px solid #37424f;
+  border-radius: 6px;
+  outline: none;
+}
+.igx-afk-row input[type="number"] {
+  max-width: 90px;
+  text-align: center;
+}
+/* 4 плашки сабов (лиды + доноры) в живой панели АФК: сетка 2×2 вместо четырёх
+   строк — панель и так длинная, а на 320 px помещается. Подпись сверху, поле на всю
+   ширину ячейки (number-ограничение 90px ниже перебиваем). */
+.igx-afk-quad {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 8px;
+  margin-bottom: 8px;
+}
+.igx-afk-quad .igx-afk-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  margin-bottom: 0;
+  font-size: 11px;
+}
+.igx-afk-quad .igx-afk-row input[type="number"] {
+  max-width: none;
+  width: 100%;
+}
+.igx-afk-status {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #34d399;
+  min-height: 15px;
+  line-height: 1.3;
+}
+.igx-afk-stats {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #232b35;
+  font-size: 11px;
+  color: #aebbc9;
+  line-height: 1.7;
+}
+.igx-afk-stats b {
+  color: #e7edf3;
+}
+
+/* ---------- состояния повторных проверок ---------- */
+/* Идёт глубокая проверка Telegram (поиск лички) */
+.igx-bolt.is-tg-pending {
+  border-color: #c084fc;
+  background: rgba(60, 25, 95, 0.95);
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.5);
+  animation: igx-pulse 1s infinite;
+}
+/* Личка в Telegram найдена — золото */
+.igx-bolt.is-gold {
+  border-color: #ffd400;
+  background: rgba(92, 72, 0, 0.95);
+  box-shadow: 0 0 12px rgba(255, 212, 0, 0.7);
+}
+
+/* Пульсирующее свечение фона за аватаркой во время проверок */
+.igx-avatar-pending { border-radius: 50%; animation: igx-glow-blue 1.3s ease-in-out infinite; }
+.igx-avatar-tg-pending { border-radius: 50%; animation: igx-glow-violet 1.3s ease-in-out infinite; }
+.igx-avatar-gold { border-radius: 50%; animation: igx-glow-gold 1.8s ease-in-out infinite; }
+
+@keyframes igx-glow-blue {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(91, 141, 214, 0.9), 0 0 14px 4px rgba(91, 141, 214, 0.55); }
+  50% { box-shadow: 0 0 0 2px rgba(91, 141, 214, 0.25), 0 0 5px 1px rgba(91, 141, 214, 0.15); }
+}
+@keyframes igx-glow-violet {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.9), 0 0 14px 4px rgba(168, 85, 247, 0.55); }
+  50% { box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.25), 0 0 5px 1px rgba(168, 85, 247, 0.15); }
+}
+@keyframes igx-glow-gold {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(255, 212, 0, 0.95), 0 0 18px 6px rgba(255, 190, 0, 0.75); }
+  50% { box-shadow: 0 0 0 3px rgba(255, 212, 0, 0.6), 0 0 10px 3px rgba(255, 190, 0, 0.45); }
+}
+
+/* Строка: идёт глубокая ТГ-проверка */
+.igx-row-tg-pending {
+  background-color: rgba(168, 85, 247, 0.2) !important;
+  border-left: 5px solid #c084fc !important;
+  border-radius: 8px !important;
+  animation: igx-row-pulse-violet 1.5s infinite;
+}
+@keyframes igx-row-pulse-violet {
+  0%, 100% { background-color: rgba(168, 85, 247, 0.14); }
+  50% { background-color: rgba(168, 85, 247, 0.3); }
+}
+
+/* Строка: личка найдена */
+.igx-row-gold {
+  background-color: rgba(255, 200, 0, 0.22) !important;
+  border-left: 5px solid #ffd400 !important;
+  border-radius: 8px !important;
+  animation: igx-row-pulse-gold 2s infinite;
+}
+.igx-row-gold:hover {
+  background-color: rgba(255, 200, 0, 0.32) !important;
+}
+@keyframes igx-row-pulse-gold {
+  0%, 100% { background-color: rgba(255, 200, 0, 0.16); }
+  50% { background-color: rgba(255, 200, 0, 0.3); }
+}
+
+/* Строка: список этого эксперта полностью прочекан — красно-пурпурный */
+.igx-row-done {
+  background-color: rgba(225, 29, 143, 0.2) !important;
+  border-left: 5px solid #e11d8f !important;
+  border-radius: 8px !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.igx-row-done:hover {
+  background-color: rgba(225, 29, 143, 0.32) !important;
+}
+/* Выжатые эксперты (три состояния): только подписчики = пурпурный, только подписки = синий, оба = фиолетовый */
+.igx-row-done-fol {
+  background-color: rgba(162, 28, 175, 0.22) !important; /* пурпурный */
+  border-left: 5px solid #a21caf !important;
+  border-radius: 8px !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.igx-row-done-fol:hover { background-color: rgba(162, 28, 175, 0.34) !important; }
+.igx-row-done-fsg {
+  background-color: rgba(59, 130, 246, 0.20) !important; /* синий */
+  border-left: 5px solid #3b82f6 !important;
+  border-radius: 8px !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.igx-row-done-fsg:hover { background-color: rgba(59, 130, 246, 0.32) !important; }
+.igx-row-done-both {
+  background-color: rgba(139, 92, 246, 0.24) !important; /* фиолетовый */
+  border-left: 5px solid #8b5cf6 !important;
+  border-radius: 8px !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.igx-row-done-both:hover { background-color: rgba(139, 92, 246, 0.36) !important; }
+.igx-bolt.is-done {
+  border-color: #e11d8f;
+  background: rgba(95, 15, 65, 0.95);
+  box-shadow: 0 0 8px rgba(236, 72, 153, 0.5);
+}
+.igx-avatar-done { border-radius: 50%; animation: igx-glow-done 1.8s ease-in-out infinite; }
+@keyframes igx-glow-done {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.9), 0 0 14px 4px rgba(236, 72, 153, 0.55); }
+  50% { box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.25), 0 0 5px 1px rgba(236, 72, 153, 0.15); }
+}
+
+/* ---------- полоска перемотки на видео ИГ ---------- */
+/* Полоска висит в document.body с position:fixed — поверх ВСЕГО интерфейса ИГ.
+   Координаты (left/top/width) ставятся из content.js каждый кадр по прямоугольнику видео. */
+.igx-seekbar {
+  position: fixed;
+  /* максимум — полоска должна лежать выше всех прозрачных оверлеев ИГ,
+     иначе клики по ней уходят в его жесты */
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 7px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.55));
+  pointer-events: auto;
+}
+.igx-seek-track {
+  position: relative;
+  flex: 1;
+  height: 16px;
+  cursor: pointer;
+  touch-action: none;
+}
+.igx-seek-track::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 2px;
+}
+.igx-seek-fill {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  width: 0;
+  background: #38bdf8;
+  border-radius: 2px;
+  pointer-events: none;
+}
+.igx-seek-knob {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+.igx-seek-track:hover .igx-seek-knob {
+  transform: scale(1.2);
+}
+.igx-seek-time {
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+  user-select: none;
+}
+.igx-seek-copy-meta {
+  background: none;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 4px;
+  margin-left: 6px;
+  opacity: 0.85;
+  transition: opacity 0.15s, transform 0.15s;
+  color: #fff;
+  line-height: 1;
+}
+.igx-seek-copy-meta:hover {
+  opacity: 1;
+  transform: scale(1.18);
+}
+
+/* Панель кнопок на карусели со слайдами */
+.igx-carousel-bar {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+.igx-carousel-bar button {
+  background: rgba(15, 20, 26, 0.85);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transition: all 0.15s ease;
+  line-height: 1.2;
+}
+.igx-carousel-bar button:hover {
+  background: #0284c7;
+  border-color: #38bdf8;
+  transform: translateY(-1px);
+}
+
+/* Попап извлечения текста из видео и слайдов */
+.igx-ocr-pop {
+  position: fixed;
+  z-index: 2147483647;
+  display: none;
+  flex-direction: column;
+  top: 70px;
+  right: 24px;
+  width: 350px;
+  max-width: calc(100vw - 20px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  box-sizing: border-box !important;
+  padding: 14px 16px;
+  background: #0f141a;
+  border: 1px solid #2c3440;
+  border-radius: 12px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.7);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #e7edf3;
+  touch-action: none;
+}
+.igx-ocr-pop * {
+  box-sizing: border-box !important;
+}
+.igx-ocr-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  cursor: grab;
+  user-select: none;
+}
+.igx-ocr-pop.is-dragging .igx-ocr-head {
+  cursor: grabbing;
+}
+.igx-ocr-close {
+  background: none;
+  border: none;
+  color: #8fa3b8;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.igx-ocr-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+.igx-ocr-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.igx-ocr-tab {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #1a2129;
+  border: 1px solid #2c3440;
+  border-radius: 6px;
+  color: #8fa3b8;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+}
+.igx-ocr-tab:hover {
+  background: #252e39;
+  color: #e7edf3;
+}
+.igx-ocr-tab.active {
+  background: #38bdf8;
+  color: #06202e;
+  border-color: #38bdf8;
+}
+.igx-ocr-inputs {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 12px !important;
+  width: 100% !important;
+  margin-bottom: 12px !important;
+  box-sizing: border-box !important;
+}
+.igx-ocr-field {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+.igx-ocr-field-label {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #aebbc9 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+.igx-ocr-field input {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 7px 10px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #e7edf3 !important;
+  background: #1a2129 !important;
+  border: 1px solid #37424f !important;
+  border-radius: 6px !important;
+  outline: none !important;
+  text-align: center !important;
+  -moz-appearance: textfield !important;
+}
+.igx-ocr-field input::-webkit-outer-spin-button,
+.igx-ocr-field input::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+.igx-ocr-field input:focus {
+  border-color: #38bdf8 !important;
+}
+.igx-ocr-modes {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #aebbc9;
+}
+.igx-ocr-modes label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.igx-ocr-badge {
+  font-size: 11px;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 6px;
+  padding: 5px 8px;
+  text-align: center;
+  margin-bottom: 10px;
+}
+.igx-ocr-run {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #06202e;
+  background: #38bdf8;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.igx-ocr-run:hover {
+  background: #63cdfb;
+}
+.igx-ocr-run:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.igx-ocr-status {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #8fa3b8;
+  min-height: 16px;
+  line-height: 1.35;
+  user-select: text;
+}
+.igx-ocr-result-wrap {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #2c3440;
+  user-select: text;
+}
+.igx-ocr-result-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #aebbc9;
+}
+.igx-ocr-copy-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #06202e;
+  background: #38bdf8;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.igx-ocr-copy-btn:hover {
+  background: #63cdfb;
+}
+.igx-ocr-result-text {
+  width: 100%;
+  box-sizing: border-box;
+  height: 90px;
+  padding: 6px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  font-family: inherit;
+  color: #e7edf3;
+  background: #161c23;
+  border: 1px solid #37424f;
+  border-radius: 6px;
+  resize: vertical;
+  outline: none;
+  user-select: text;
+}
+.igx-ocr-result-text:focus {
+  border-color: #38bdf8;
+}
+.igx-btn-ocr {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #e7edf3;
+  background: #24303c;
+  border: 1px solid #37424f;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.igx-btn-ocr:hover {
+  background: #2e3d4c;
+  border-color: #38bdf8;
+}
+.igx-btn-copy-meta {
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e7edf3;
+  background: #1a222b;
+  border: 1px solid #37424f;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+.igx-btn-copy-meta:hover {
+  background: #25313e;
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+.igx-ocr-chk-meta-label {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin-top: 8px !important;
+  margin-bottom: 6px !important;
+  font-size: 11px !important;
+  color: #cbd5e1 !important;
+  cursor: pointer !important;
+  user-select: none !important;
+}
+.igx-ocr-chk-meta-label input[type="checkbox"] {
+  cursor: pointer !important;
+  accent-color: #38bdf8 !important;
+}
+
+/* ---------- редактируемый промпт для облачной распознавалки ----------
+   Блок ставится и в OCR-попап, и в анализатор профиля: значение одно на все
+   входы (ключ storage igx_ocr_prompt), поэтому разметка и стили общие. */
+.igx-prompt-details {
+  margin-top: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: #8fa3b8;
+  cursor: pointer;
+}
+.igx-prompt-details > summary {
+  outline: none;
+  user-select: none;
+  font-weight: 600;
+}
+.igx-prompt-body {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: default;
+}
+.igx-prompt-area {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  font-family: inherit;
+  color: #e7edf3;
+  background: #1a2129;
+  border: 1px solid #37424f;
+  border-radius: 6px;
+  resize: vertical;
+  outline: none;
+  user-select: text;
+}
+.igx-prompt-area:focus {
+  border-color: #38bdf8;
+}
+/* Свой промпт активен — подсветка, чтобы было видно: сейчас читается не шаблон. */
+.igx-prompt-area.is-custom {
+  border-color: #38bdf8;
+  background: #16222e;
+}
+.igx-prompt-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.igx-prompt-btn {
+  flex: 1 1 auto;
+  padding: 4px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #cbd5e1;
+  background: #24303c;
+  border: 1px solid #37424f;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.igx-prompt-btn:hover {
+  background: #2e3d4c;
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+.igx-prompt-hint {
+  font-size: 10px;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+/* ---------- локальная vision-модель (LM Studio) в OCR-попапе ----------
+   Тот же тёмный стиль, что у блока с ключом Groq: это такой же движок,
+   просто свой. Строка заметки (`is-ok` / `is-bad`) — единственный способ
+   показать человеку, живой ли сервер, не запуская разбор. */
+.igx-ocr-local-details {
+  margin-top: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: #8fa3b8;
+  cursor: pointer;
+}
+.igx-ocr-local-details > summary {
+  outline: none;
+  user-select: none;
+  font-weight: 600;
+}
+.igx-ocr-local-body {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: default;
+}
+.igx-ocr-local-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #8fa3b8;
+  cursor: default;
+}
+.igx-ocr-local-chk {
+  cursor: pointer;
+  color: #cbd5e1;
+  font-weight: 600;
+}
+/* Галка в тон остальным элементам попапа: без этого она остаётся системно-белой. */
+.igx-ocr-local-on {
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
+.igx-ocr-local-order {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 6px;
+  font-size: 10px;
+  color: #e7edf3;
+  background: #1a2129;
+  border: 1px solid #37424f;
+  border-radius: 5px;
+  outline: none;
+  cursor: pointer;
+}
+.igx-ocr-local-url,
+.igx-ocr-local-model {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  font-size: 10px;
+  color: #e7edf3;
+  background: #1a2129;
+  border: 1px solid #37424f;
+  border-radius: 6px;
+  outline: none;
+  user-select: text;
+}
+.igx-ocr-local-url:focus,
+.igx-ocr-local-model:focus {
+  border-color: #38bdf8;
+}
+.igx-ocr-local-btns {
+  display: flex;
+  gap: 4px;
+}
+.igx-ocr-local-check,
+.igx-ocr-local-warm {
+  flex: 1 1 auto;
+  padding: 4px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #cbd5e1;
+  background: #24303c;
+  border: 1px solid #37424f;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.igx-ocr-local-check:hover,
+.igx-ocr-local-warm:hover {
+  background: #2e3d4c;
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+.igx-ocr-local-check:disabled,
+.igx-ocr-local-warm:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.igx-ocr-local-note {
+  font-size: 10px;
+  line-height: 1.3;
+  color: #8fa3b8;
+  word-break: break-word;
+}
+.igx-ocr-local-note:empty {
+  display: none;
+}
+.igx-ocr-local-note.is-ok {
+  color: #4ade80;
+}
+.igx-ocr-local-note.is-bad {
+  color: #f87171;
+}
+.igx-ocr-local-hint {
+  font-size: 10px;
+  color: #64748b;
+  line-height: 1.3;
+}

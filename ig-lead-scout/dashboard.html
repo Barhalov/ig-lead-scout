@@ -1,0 +1,1544 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>IG Lead Scout — панель управления</title>
+<link rel="stylesheet" href="dashboard.css" />
+</head>
+<body>
+  <!-- фон: слабые диагональные полосы (как на карте оплаты), иногда поблёскивают -->
+  <div class="bg-stripes" aria-hidden="true"></div>
+  <div class="bg-shine" aria-hidden="true"></div>
+  <div class="bg-aura" aria-hidden="true"></div>
+  <div class="bg-cool" aria-hidden="true"></div>
+  <div class="bg-flash" aria-hidden="true"></div>
+  <!-- оттенок всего сайта от кнопок второго листа (item 8): чек TG → зелёный, разбор → розово-голубой -->
+  <div class="p2-tint" aria-hidden="true"></div>
+  <div class="fx-sparks" id="fxSparks" aria-hidden="true"></div>
+  <!-- строб: появляется с 20 окон и плавно набирается до 30 (см. --epi в dashboard.css) -->
+  <div class="fx-epi" aria-hidden="true"></div>
+  <!-- сирена остановки: красная мигалка, пока после «стопа» ещё догорает больше 8 окон -->
+  <div class="fx-siren" aria-hidden="true"></div>
+
+  <header class="dash-head">
+    <span class="dash-mark">⚡</span>
+    <div>
+      <h1>IG Lead Scout</h1>
+      <p class="dash-sub">Статистика базы · настройки (синхрон с расширением) · бесконечная проверка</p>
+    </div>
+    <button id="btnNotif" class="notif-btn" title="Только что проверенные профили" aria-label="Уведомления">
+      🔔<span id="notifCount" class="notif-count" hidden>0</span>
+    </button>
+    <button id="btnRisk" class="risk-btn" title="Шкала риска бана Instagram" aria-label="Риск бана">🌡<span id="riskDot" class="risk-dot"></span></button>
+    <button id="btnHistory" class="hist-btn" title="История прогонов и проверенных аккаунтов">📜 История</button>
+    <span class="live-badge" title="Идёт бесконечный прогон"><i></i>LIVE<span id="liveCount" class="live-count" hidden>0</span></span>
+  </header>
+
+  <!-- ============ ПЕРЕКЛЮЧАТЕЛЬ ЛИСТОВ: ←/→ и свайп тоже листают ============ -->
+  <nav class="page-nav" aria-label="Листы панели">
+    <button class="page-tab is-on" data-page="1" title="Проверка, статистика, ниши">① Панель</button>
+    <button class="page-tab" data-page="2" title="Ревизия TG и автоанализ">② Доказательная база</button>
+    <button class="page-tab" data-page="3" title="Подключение телефона и настройки моста">③ Телефон</button>
+    <button class="page-tab" data-page="4" title="Telegram-аккаунты: кому ты уже писал (чтобы не светить лида дважды)">④ TG-аккаунты</button>
+    <button class="page-tab" data-page="5" title="Сам добывает, сам тормозит, сам ждёт разбана">⑤ Автопилот</button>
+    <button class="page-tab" data-page="6" title="Второй канал добычи: комменты под рилсами, когда Instagram ограничил просмотр подписчиков">⑥ Комменты</button>
+  </nav>
+
+  <!-- ============ ШТОРКА УВЕДОМЛЕНИЙ: свежесмотренные профили ============ -->
+  <aside id="notifDrawer" class="notif-drawer" aria-hidden="false">
+    <div class="nd-head">
+      <span class="nd-title">🔔 Свежие проверки</span>
+      <button id="notifClear" class="nd-clear" title="Очистить">очистить</button>
+      <button id="notifClose" class="nd-close" title="Закрыть">✕</button>
+    </div>
+    <div id="notifList" class="nd-list"></div>
+    <div id="notifEmpty" class="nd-empty">Пока пусто — как только парсер досмотрит профиль, он вылетит сюда.</div>
+  </aside>
+
+  <!-- ============ ШКАЛА РИСКА БАНА: слева, сворачивается как шторка ============ -->
+  <aside id="riskMeter" class="risk-drawer is-closed" aria-hidden="true">
+    <div class="rm-head">
+      <span class="rm-title">🌡 Шкала риска бана</span>
+      <button id="riskClose" class="rm-close" title="Свернуть">✕</button>
+    </div>
+    <div class="rm-body">
+      <div class="rm-gauge">
+        <div class="rm-bar"><i id="rmFill"></i></div>
+        <div class="rm-vbars" id="rmVMeters"></div>
+      </div>
+      <div class="rm-verdict" id="rmVerdict">нет данных</div>
+      <div class="rm-conf">достоверность: <span id="rmConf">—</span></div>
+      <div class="rm-reactor">
+        <div class="rm-core" id="rmCore" title="Ядро = общий риск бана (0–100%). Белое → жёлтое → оранжевое → красное пульсирующее. Когда красное и дёргается — риск критический (≥80%), надо сбавить темп. Окружающие точки — 21 индикатор по подсистемам."><b id="rmPct">0</b><span>%</span></div>
+        <div class="rm-bulbs" id="rmBulbs"></div>
+        <!-- ВТОРОЙ/ТРЕТИЙ/ЧЕТВЁРТЫЙ/ПЯТЫЙ/ШЕСТОЙ слои реактора. Лампочки стоят на
+             радиусе 116 px (бан — 22 px, тот же радиус), сгруппированы РЯДОМ С РОДНЫМИ
+             ИНДИКАТОРАМИ основной 21-ки, в серединах щелей (шаг 17.14°), сплошной дугой.
+               • БАН ИГ (1): 351.4 — зенит, слот принадлежит только ему
+               • КОММЕНТЫ (лист ⑥, 4): 317.1 / 334.3 / 8.6 / 25.7 — верх (351.4 уступлё бану)
+               • TG-аккаунты (лист ④, 4): 42.9 / 60.0 / 77.2 / 94.3 — правая дуга
+               • ТЕЛЕФОН (лист ③, 4): 111.4 / 128.6 / 145.7 / 162.9 — низ-право
+               • АВТОПИЛОТ (лист ⑤, 4): 248.6 / 265.7 / 282.9 / 300.0 — левая дуга,
+                 появляется когда поднята пилюля листа ⑤ ИЛИ горит кнопка «▶» -->
+        <div class="rm-bulbs rm-phone-bulbs" id="rmPhoneBulbs" aria-hidden="true"></div>
+        <div class="rm-bulbs rm-tg-bulbs" id="rmTgBulbs" aria-hidden="true"></div>
+        <div class="rm-bulbs rm-cmt-bulbs" id="rmCmtBulbs" aria-hidden="true"></div>
+        <div class="rm-bulbs rm-auto-bulbs" id="rmAutoBulbs" aria-hidden="true"></div>
+        <div class="rm-bulbs rm-ban-bulbs" id="rmBanBulb" aria-hidden="true"></div>
+      </div>
+      <div id="rmWarn" class="rm-warn" hidden>
+        <div class="rm-warn-txt">⚠️ Высокий риск бана. Можно закрыть и продолжить на свой страх.</div>
+        <button id="rmWarnOk" class="rm-warn-ok">Понятно, продолжить</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ ЛИСТ 1: запуск, статистика, ниши ============ -->
+  <main class="dash-page is-active" data-page="1">
+  <!-- ============ ЦЕНТР ЗАПУСКА: большая кнопка, по бокам настройки ============ -->
+  <section class="dash-card card-stage">
+    <div class="stage-grid">
+
+      <aside class="stage-side">
+        <h3>Поведение</h3>
+        <label class="set-row"><span>Клик по профилю открывает:</span>
+          <select id="setOpenMode">
+            <option value="newtab">Новую вкладку в фоне</option>
+            <option value="splitscreen">Сплит-экран (окно рядом)</option>
+            <option value="sametab">Как обычно, в этой же вкладке</option>
+          </select>
+        </label>
+        <div class="set-duo">
+          <label class="set-row" title="Пауза МЕЖДУ запусками проверок в одном окне. Меньше — быстрее фарм, но лимит навязывает Instagram: шкала риска слева считает темп <2 с как отдельный фактор, а авто-перерыв и реакция на блок не отменяются. Дефолт 4 с, ниже 2 с — уже осознанный риск. Если включён автопилот (лист ⑤), это число — его ПОЛ: он умеет только увеличивать паузу, а быстро ехать — никогда."><span>Пауза ⚡, сек</span>
+            <input type="number" id="setThrottle" min="1" max="30" step="1" />
+            <span class="auto-by" id="setThrottleAuto" hidden title="Темп подвинул автопилот: притормаживает по шкале риска (×2 / ×4 / ×8 от твоего пола). Двинул поле руками — метка снимется, и твоё число станет новым потолком скорости.">🤖 темп выбрал автопилот</span>
+          </label>
+          <label class="set-row" title="Насколько случайно отклонять каждую паузу от заданной. Написал 2 — реальная пауза гуляет в диапазоне пауза±2 сек. Рваные интервалы меньше похожи на бота, чем метроном. 0 = выключено"><span>Джиттер ±, сек</span>
+            <input type="number" id="setJitter" min="0" max="60" step="1" placeholder="0" />
+          </label>
+        </div>
+        <!-- 4 плашки сабов сеткой 2×2: строка 1 — ЛИДЫ (кого чекать и кого кидать в
+             бота), строка 2 — ДОНОРЫ (у кого вообще берём список). раньше порог был
+             один на обоих: «мелкий донор с крупными подписчиками» отпадал как лид, и
+             лимит доноров кончался раньше, чем база. Пустое поле донора = наследует лидов. -->
+        <div class="set-quad">
+          <label class="set-row" title="Минимум подписчиков у ЛИДА — такие профили не берём и в бота не кидаем. На самого донора НЕ влияет: для него есть поля «донор» ниже."><span>лиды · мин. сабов</span>
+            <input type="number" id="setMinF" min="0" step="100" placeholder="0" />
+          </label>
+          <label class="set-row" title="Максимум подписчиков у ЛИДА (0 = без верха). На самого донора НЕ влияет."><span>лиды · макс. сабов</span>
+            <input type="number" id="setMaxF" min="0" step="100" placeholder="0" />
+          </label>
+          <label class="set-row" title="Минимум подписчиков у САМОГО донора — у кого чекать подписчиков/подписки. Пусто = наследует порог лидов. Ставь ниже лидового, если доноров не хватает: у небогатого эксперта часто самая вкусная аудитория."><span>донор · мин. сабов</span>
+            <input type="number" id="setDonorMin" min="0" step="100" placeholder="как у лидов" />
+          </label>
+          <label class="set-row" title="Максимум подписчиков у САМОГО донора. Пусто = наследует порог лидов, 0 = без потолка. Донор-миллионник прячет список и поле поиска — потолок тут реально спасает прогон."><span>донор · макс. сабов</span>
+            <input type="number" id="setDonorMax" min="0" step="100" placeholder="как у лидов" />
+          </label>
+        </div>
+
+        <h3 class="mt">АФК / бесконечный чек</h3>
+        <label class="set-row"><span>Кого чекать</span>
+          <select id="setAfkKind">
+            <option value="followers">Подписчиков</option>
+            <option value="following">Подписки</option>
+            <option value="both">Всех (сначала подписчики, потом подписки)</option>
+          </select>
+        </label>
+        <label class="set-row"><span>Заходить в профили</span>
+          <select id="setAfkEnter">
+            <option value="random">Крупнейший / зелёный</option>
+            <option value="word">Только зелёные со словом</option>
+            <option value="wordall">Все кроме выжатых (слово+сабы)</option>
+          </select>
+        </label>
+        <label class="set-row"><span>Слово донора (обязательно, через запятую)</span>
+          <input type="text" id="setAfkWord" placeholder="фитнес, йога" />
+        </label>
+        <label class="set-row"><span>Пол донора</span>
+          <select id="setAfkGender" title="Пол са́мого донора — у кого чекать подписчиков/подписки. Считается так же, как бейдж «Квал: пол» в истории: имя из базы имён + родовые окончания в тексте профиля; слова об аудитории («девушек», «женский клуб») не учитываются. При «женский/мужской» профили с нераспознанным полом не берутся — это жёсткий фильтр, как слово донора и диапазон сабов.">
+            <option value="all">Все</option>
+            <option value="f">Женский</option>
+            <option value="m">Мужской</option>
+          </select>
+        </label>
+        <div class="set-duo">
+          <label class="set-row" title="Автоперерыв: после скольких проверок подряд АФК сам замирает. 0 = без перерывов (тогда шкала риска считает длинный ряд опасным)"><span>Перерыв после N</span>
+            <input type="number" id="setBreakEvery" min="0" max="100000" step="10" placeholder="0" />
+          </label>
+          <label class="set-row" title="Сколько минут длится автоперерыв (АФК спит кусками и мгновенно реагирует на «стоп»)"><span>Перерыв, мин</span>
+            <input type="number" id="setBreakMin" min="1" max="180" step="1" placeholder="5" />
+          </label>
+        </div>
+        <div class="set-chk-row">
+          <label class="set-chk set-chk--tight" title="Показывать предупреждение на шкале риска, когда она заполняется, карточки ошибок в шторку, мигание и тряску экрана. Сними галку — шума не будет (можно игнорировать и продолжить). Сама шкала слева и все 21 индикатора на ней остаются ПОЛНОСТЬЮ как раньше: просто не лезут на экран. На бан не действует: когда Instagram реально заблокировал аккаунт — приговор «ТЯ ЕБНУЛО», красные карточки и тряска останутся при любой галке"><input type="checkbox" id="setWarnBan" /> ⚠️ предупреждать о риске</label>
+          <label class="set-chk set-chk--tight"><input type="checkbox" id="setHardCheck" /> 🔒 жёсткая проверка</label>
+        </div>
+      </aside>
+
+      <div class="stage-core">
+        <h2>🚀 Бесконечный чек</h2>
+        <p class="dash-hint">
+          Откроет <b>новое окно браузера</b> с Instagram и запустит АФК без остановки:
+          случайный профиль по текущим настройкам слева/справа, битый или не загрузился
+          за минуту — берёт нового. Стоп: кнопка ниже, закрыть окно, или АФК-кнопка во вкладке.
+          После «стопа» вкладки ещё досматривают текущий шаг (10-40 с) — дашборд считает их
+          живыми, пока они реально работают, а потом сам закрывает окна, которые открыл парсер.
+        </p>
+        <div class="launch-wrap">
+          <div class="btn-aura" aria-hidden="true"></div>
+          <div class="orbit" id="orbit" aria-hidden="true"></div>
+          <!-- горизонт событий: наползает на кнопку с 17 по 20 окно (--bh) -->
+          <div class="hole" aria-hidden="true"></div>
+          <button id="btnRunInfinite" class="btn-run">▶ Запустить</button>
+          <!-- кнопка телефона: круглая, мелкая, справа-сверху над основной. Показывается
+               только когда включён мост телефона; при активном скане вокруг крутятся квадратики. -->
+          <div class="phone-ctl" id="phoneCtl" hidden>
+            <div class="phone-orbit" aria-hidden="true"><i style="--a:0deg"></i><i style="--a:45deg"></i><i style="--a:90deg"></i><i style="--a:135deg"></i><i style="--a:180deg"></i><i style="--a:225deg"></i><i style="--a:270deg"></i><i style="--a:315deg"></i></div>
+            <button id="btnStopPhone" class="btn-phone" title="Управляет сканом на телефоне:idle — значок телефона (клик = старт), при скане он превращается в квадрат ⏹ (клик = стоп). Появляется, когда включён мост телефона." aria-label="Телефон"><svg class="ph-btn-glyph ph-ico-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.6"/><line x1="10.2" y1="18.4" x2="13.8" y2="18.4"/></svg><svg class="ph-btn-glyph ph-ico-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2.2" fill="currentColor"/></svg></button>
+          </div>
+          <!-- ТРЕТЬЯ кнопка запуска: комменты. Круглая, 88 px — между 64 px телефона и
+               150 px основного запуска, стоит СЛЕВА СНИЗУ под основным (телефон — справа-
+               сверху). Появляется ТОЛЬКО когда включён тумблер на листе ⑥, цвет и пульс —
+               по СВОЕМУ числу окон комментов (1-2 окна = синий, 3+ = белый), а не по
+               общему прогону: классы .is-w1/.is-w2 вешает updateCmtRunButton(). -->
+          <div class="phone-ctl cmt-sat" id="cmtSatCtl" hidden>
+            <div class="phone-orbit" aria-hidden="true"><i style="--a:0deg"></i><i style="--a:45deg"></i><i style="--a:90deg"></i><i style="--a:135deg"></i><i style="--a:180deg"></i><i style="--a:225deg"></i><i style="--a:270deg"></i><i style="--a:315deg"></i></div>
+            <button id="btnCmtSat" class="btn-cmt-sat" title="Комменты: сколько окон этого канала сейчас работает. Клик = запустить ещё окно / остановить самое старое (то же, что большая кнопка на листе ⑥)." aria-label="Комменты"><svg class="cmt-sat-glyph cmt-sat-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h16v11H9.5L6 20.5v-4H4z"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="13" x2="13" y2="13"/></svg><svg class="cmt-sat-glyph cmt-sat-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2.2" fill="currentColor"/></svg><span class="cmt-sat-n" id="cmtSatN">0</span></button>
+          </div>
+        </div>
+        <div class="run-controls">
+          <button id="btnRunExtra" class="btn-extra" hidden>＋ ещё окно</button>
+          <button id="btnStopInfinite" class="btn-stop" disabled title="Останавливает только самое старое запущенное окно; большая кнопка — стоп всё">⏹ Стоп 1 окно</button>
+        </div>
+        <div id="runPanel" class="run-panel" hidden>
+          <div class="rp-head">
+            <span class="rp-live" id="rpLive">● LIVE</span>
+            <span class="rp-title" id="rpTitle">Сводка с начала прогона</span>
+            <span class="rp-windows" id="rpWindows">0 окон</span>
+          </div>
+          <div class="rp-grid">
+            <div class="rp-cell" id="rpGotCell"><b id="rpChecked">0</b><i class="rp-ph" id="rpPhone" hidden></i><i class="rp-ph rp-cmt" id="rpCmt" hidden></i><span>собрано</span></div>
+            <div class="rp-cell grn"><b id="rpFound">0</b><span>лидов с ТГ</span></div>
+            <div class="rp-cell"><b id="rpFit">0</b><span>прошли фильтр</span></div>
+            <div class="rp-cell"><b id="rpLists">0</b><span>списков</span></div>
+            <div class="rp-cell hl"><b id="rpRateCk">0</b><span>проверок/ч</span></div>
+            <div class="rp-cell hl"><b id="rpRateLd">0</b><span>лидов/ч</span></div>
+            <div class="rp-cell wide"><b id="rpUptime">0м</b><span>суммарное время</span></div>
+          </div>
+        </div>
+        <div id="runStatus" class="run-status">Статус: нет активного бесконечного прогона.</div>
+      </div>
+
+      <aside class="stage-side">
+        <h3>Telegram</h3>
+        <label class="set-chk"><input type="checkbox" id="setTgSafe" /> 🛡️ Безопасный режим</label>
+        <label class="set-row"><span>Метод проверки</span>
+          <select id="setTgMode">
+            <option value="site">🌐 Сайт — быстрый</option>
+            <option value="tg">📱 ТГ — через web.telegram.org</option>
+          </select>
+        </label>
+        <label class="set-row"><span>Сообщений читать за чек</span>
+          <input type="number" id="setTgMsgLimit" min="5" max="200" step="1" />
+        </label>
+        <label class="set-row"><span>Задержка между проверками, сек</span>
+          <input type="number" id="setTgDelay" min="3" max="300" step="1" />
+        </label>
+        <label class="set-chk"><input type="checkbox" id="setTgAutoReport" /> Уведомлять о новых лидах</label>
+        <label class="set-row"><span>Токен бота</span>
+          <input type="text" id="setTgToken" spellcheck="false" placeholder="123:AA..." />
+        </label>
+        <label class="set-row"><span>Получатель (@юзернейм или chat_id)</span>
+          <input type="text" id="setTgChat" spellcheck="false" placeholder="@username или 123456789" />
+        </label>
+        <div class="run-row tg-actions">
+          <button id="setTgBind" class="btn-small">Привязать мой ТГ</button>
+          <button id="setTgTest" class="btn-small">Проверить бота</button>
+        </div>
+        <div id="setTgStatus" class="dash-muted small"></div>
+        <div class="set-lookback">
+          <div class="set-row set-slider-head"><span>Ошибки считать за&nbsp;<b id="setRiskLookLabel">2 дня</b></span></div>
+          <input type="range" id="setRiskLook" min="0" max="6" step="1" value="1" />
+          <div class="set-slider-ticks"><span>1д</span><span>2д</span><span>3д</span><span>нед</span><span>2нед</span><span>мес</span><span>∞</span></div>
+          <p class="dash-hint small">За какой срок ошибки автоанализа/TG считаются «живыми» на мигающих индикаторах риска. Старше срока — гаснут сами. «∞» — не гаснут, пока их не перепишут новые разборы.</p>
+        </div>
+      </aside>
+
+    </div>
+  </section>
+
+  <!-- ============ СТАТИСТИКА ============ -->
+  <section class="dash-card">
+    <h2>📊 Статистика базы</h2>
+    <div id="statCards" class="stat-grid"></div>
+    <div class="activity">
+      <div class="act-head">
+        <div class="act-label" id="actLabel">Активность · 60 мин</div>
+        <div class="act-ranges">
+          <button class="act-btn is-on" data-mins="60">час</button>
+          <button class="act-btn" data-mins="1440">день</button>
+          <button class="act-btn" data-mins="10080">неделя</button>
+          <button class="act-btn" data-mins="43200">месяц</button>
+        </div>
+      </div>
+      <div id="actBars" class="act-bars"></div>
+    </div>
+    <div id="statTrend" class="dash-muted"></div>
+  </section>
+
+  <!-- ============ НИШИ ============ -->
+  <section class="dash-card">
+    <h2>🧭 Найденные ниши</h2>
+    <p class="dash-hint">Профили кучкуются по ключевым словам в описании/имени/нику. Список ниш редактируемый — ниже.</p>
+    <div id="nicheTable" class="niche-wrap"></div>
+    <details class="niche-cfg">
+      <summary>⚙️ Настроить ниши</summary>
+      <p class="dash-muted">Формат: <code>Название: слово1, слово2, …</code> (по строке на нишу)</p>
+      <textarea id="nicheCfg" rows="8" spellcheck="false"></textarea>
+      <button id="nicheSave" class="btn-small">Сохранить ниши</button>
+    </details>
+  </section>
+
+  <!-- ТУТОРИАЛ ЛИСТА ① — В САМЫЙ НИЗ листа (юзер читает страницу сверху, а туториал
+       мешает работе: сначала подключаешься/смотришь цифры, памятка — под ногами).
+       Плашки с текстом во всю ширину карточки, ВСЕ шаги раскрыты: номерок больше не
+       висит над текстом на линии — он садится ЗА верхний край плашки, как солнце за
+       горизонт (мелкий, под углом, нижняя четверть не видна), а его градиент и свет
+       разлиты по верху плашки закатом. Угол (--rot) задаёт
+       разметка и чередует знак от шага к шагу; длины линий (--ln) остались в стилях
+       как память — на вид они больше не влияют (CSS: .sq-node / .sq-card). -->
+  <section class="dash-card sq-help">
+    <h2 class="sq-help-title">🧩 Как ферма работает — по плиткам</h2>
+    <div class="sq-guide">
+      <div class="sq-step" style="--rot:-2.5deg;--ln:30px">
+        <div class="sq-node"><span class="sq-num">1</span><span class="sq-lb">Ниша</span></div>
+        <i class="sq-line"></i>
+        <div class="sq-card"><b>Кого искать.</b> Задай «Слово донора», пол и подписчиков слева/справа — случайный профиль берётся по ним. Без слова ферма кружит кого попало, и лидов с ТГ будет мало.</div>
+      </div>
+      <div class="sq-step" style="--rot:2deg;--ln:76px">
+        <div class="sq-node"><span class="sq-num">2</span><span class="sq-lb">Пуск</span></div>
+        <i class="sq-line"></i>
+        <div class="sq-card"><b>▶ Запустить</b> открывает новое окно с Instagram и стартует АФК без остановки: битый профиль или завис на минуту — берёт следующего. Само окно можно не трогать.</div>
+      </div>
+      <div class="sq-step" style="--rot:-1.5deg;--ln:48px">
+        <div class="sq-node"><span class="sq-num">3</span><span class="sq-lb">Окна</span></div>
+        <i class="sq-line"></i>
+        <div class="sq-card"><b>＋ ещё окно</b> = ещё один независимый чекер. Скорость растёт почти линейно, но лимит навязывает Instagram, а не дашборд: с ростом окон растёт и риск ограничения — шкала риска слева показывает темп.</div>
+      </div>
+      <div class="sq-step" style="--rot:2.5deg;--ln:92px">
+        <div class="sq-node"><span class="sq-num">4</span><span class="sq-lb">Стоп</span></div>
+        <i class="sq-line"></i>
+        <div class="sq-card"><b>⏹ Стоп 1 окно</b> гасит самое старое, большая кнопка — всё сразу. Вкладки досматривают текущий шаг (10-40 с) и закрываются сами; окна, открытые парсером, дашборд уберёт сам.</div>
+      </div>
+      <div class="sq-step" style="--rot:-2deg;--ln:62px">
+        <div class="sq-node"><span class="sq-num">5</span><span class="sq-lb">Сводка</span></div>
+        <i class="sq-line"></i>
+        <div class="sq-card"><b>Плитки под кнопкой</b> считаются от старта прогона и суммируют ВСЕ окна — включая уже закрытые — плюс то, что насобирал телефон. Обнуляются, только когда закрыл всё и нажал «▶ Запустить» заново.</div>
+      </div>
+    </div>
+    <p class="dash-muted small">Порядок — слева направо. Это просто памятка, ничего не запускает.</p>
+  </section>
+
+  <footer class="dash-muted small">
+    База и настройки живут в chrome.storage расширения. Страница сама обновляется при изменениях.
+  </footer>
+  </main>
+
+  <!-- ============ ЛИСТ 2: доказательная база — две кнопки со своими настройками ============ -->
+  <main class="dash-page" data-page="2">
+    <section class="dash-card card-orbs">
+      <h2>🧪 Что там с Telegram на самом деле</h2>
+      <p class="dash-hint">
+        «Ссылка есть» и «TG жив» — разные утверждения. Здесь жёлтый ноль перестаёт врать:
+        <b>кнопка ①</b> массово проверяет все TG-ссылки через превью t.me и пишет честный вердикт
+        (жив / мёртв / канал / бот / не удалось), <b>кнопка ②</b> берёт только доказанно живых,
+        открывает их Instagram, разбирает профиль и присылает готовый промт. Каждая кнопка
+        «горит» ровно от СВОЕЙ фермы живых проверок. Диапазон сабов у автоанализа — свой
+        (поле «Подписчиков от/до»), по умолчанию наследует общий диапазон с листа ①.
+      </p>
+
+      <div class="orb-grid">
+        <!-- ============ КНОПКА ① · РЕВИЗИЯ TG ============ -->
+        <div class="orb-col">
+          <div class="orb-wrap">
+            <div class="orb-aura" aria-hidden="true"></div>
+            <div class="orb-orbit oo-1" aria-hidden="true"><i class="orb-particle"></i></div>
+            <div class="orb-orbit oo-2" aria-hidden="true"><i class="orb-particle"></i></div>
+            <div class="orb-orbit oo-3" aria-hidden="true"><i class="orb-particle"></i></div>
+            <button id="btnTgRev" class="orb-btn orb-rev" title="Массово проверить все TG-ссылки через превью t.me">🔎<br>Ревизия TG</button>
+          </div>
+          <div class="run-controls">
+            <button id="btnTgRevStop" class="btn-stop" disabled>⏹ Стоп ревизию</button>
+          </div>
+          <div id="revPanel" class="run-panel is-on">
+            <div class="rp-head">
+              <span class="rp-live">●</span>
+              <span class="rp-title">Сводка · Ревизия TG</span>
+              <span class="rp-windows" id="rvWorkers">0 пачек</span>
+            </div>
+            <div class="rp-grid">
+              <div class="rp-cell"><b id="rvTotal">0</b><span>кандидатов</span></div>
+              <div class="rp-cell"><b id="rvChecked">0</b><span>просмотрено</span></div>
+              <div class="rp-cell grn"><b id="rvReal">0</b><span>живых</span></div>
+              <div class="rp-cell red"><b id="rvDead">0</b><span>мёртвых</span></div>
+              <div class="rp-cell vio"><b id="rvUnknown">0</b><span>не удалось</span></div>
+              <div class="rp-cell hl"><b id="rvSpeed">—</b><span>скорость</span></div>
+              <div class="rp-cell"><b id="rvUptime">—</b><span>в работе</span></div>
+              <div class="rp-cell wide"><b id="rvMode">t.me превью</b><span>режим проверки</span></div>
+            </div>
+          </div>
+         <div id="revStatus" class="run-status">Ревизия не запускалась. Настройки глубины — слева.</div>
+
+          <!-- Ремонт базы: снять ложные TG, приписанные глобальным поиском по номеру -->
+          <div class="rc-block">
+            <div class="rc-title">🧹 Чистка TG</div>
+            <p class="dash-muted small">Снимает ложные/мёртвые Telegram-юзы. <b>По номеру</b> — строгая перепроверка TG из поиска по номеру (нужен залогиненный 📱 ТГ). <b>Все юзы</b> — проверка каждого юза через t.me, снимает мёртвых.</p>
+            <label class="rc-scope"><span>Кого чистить</span>
+              <select id="rcxScope" title="Ограничить чистку профилями, которым делался автоанализ (разбор) — это сотни, а не тысячи. «Все» — пройтись по всей базе (медленно).">
+                <option value="analyzed">Только разобраные (автоанализ)</option>
+                <option value="all">Все профили в базе</option>
+              </select>
+            </label>
+            <div class="run-row rc-row">
+              <button id="btnRecheckPhone" class="btn-small" title="Перепроверить TG, полученный по номеру: снять парашу, оставить доказанных">▶ По номеру</button>
+              <button id="btnRecheckAll" class="btn-small" title="Сплошная перепроверка юзов через t.me: снять тех, кого больше нет (мёртвые юзы). Медленно, идёт молча в фоне.">⟳ Все юзы</button>
+              <button id="btnRecheckPhoneStop" class="btn-small" disabled>⏹ Стоп</button>
+            </div>
+            <div id="recheckPhoneStatus" class="run-status">Чистка не запускалась.</div>
+            <div class="run-row rc-row">
+              <button id="btnSweepNick" class="btn-small" title="Скрыть из /list и автоанализа те TG, что попали в профиль только как догадка «тот же @ник в ТГ» (докеры/однофамильцы/боты под чужим ником). Предпросмотр → подтверждение → мягкое скрытие, с откатом. Сеть не нужна.">🎭 По нику</button>
+              <button id="btnSweepNickUndo" class="btn-small" title="Вернуть обратно контакты, скрытые кнопкой «По нику»">↶ Откат</button>
+            </div>
+            <div id="sweepNickStatus" class="run-status">Чистка «по нику» не запускалась.</div>
+          </div>
+        </div>
+
+        <aside class="orb-side">
+          <h3>Глубина проверки ①</h3>
+          <label class="set-row"><span>Канал проверки</span>
+            <select id="setVerifyMode" title="t.me — анонимное превью, быстро и без логина, масштабируется на тысячи. webtg — поверх t.me добивает залогиненным web.telegram.org то, что анонимно не определилось (личные юзы «проверить не удалось») и подтверждает живых. выкл — не проверять и нигде не писать «подтверждён».">
+              <option value="tme">t.me превью (быстро)</option>
+              <option value="webtg">t.me + web-сессия (добор)</option>
+              <option value="off">выключено</option>
+            </select>
+          </label>
+          <label class="set-row"><span>Параллельно пачек</span>
+            <input type="number" id="setRevConc" min="1" max="4" step="1" />
+          </label>
+          <label class="set-row"><span>Пауза между ссылками, мс</span>
+            <input type="number" id="setRevThrottle" min="120" max="5000" step="20" />
+          </label>
+          <label class="set-row"><span>Вердикт протухает через, дней</span>
+            <input type="number" id="setRevMaxAge" min="1" max="3650" step="1" />
+          </label>
+          <label class="set-row" title="Сколько профилей за прогон добить живым поиском в web.telegram.org. Лимит расходуется в первую очередь на тех, кого анонимный t.me не смог определить (было «проверить не удалось»), и лишь на остаток — на подтверждение «живых». Подними, если личных юзов с «не удалось» много."><span>Добор web-сессией, сколько (K)</span>
+            <input type="number" id="setRevWebtgTop" min="0" max="5000" step="10" />
+          </label>
+          <label class="set-chk"><input type="checkbox" id="setRevOnlyStale" /> брать только протухшие (не трогать «не проверялся»)</label>
+
+          <!-- ТГК-гейт автоанализа: канал без юзы = личку написать некому, разбор
+               уходит в пустоту. Живёт в правой колонке под «Глубиной проверки»:
+               в левой колонке он сильно растягивал столбец вниз. -->
+          <div class="tgk-card">
+            <h4>📛 ТГК — каналы без юзы</h4>
+            <p class="dash-muted small">Автоанализ берёт профили даже с непроверенным TG. Если там канал, в который нельзя написать, — время разбора летит впустую. Здесь — что с такими делать перед стартом окон.</p>
+            <label class="set-row"><span>При отборе брать ТГК</span>
+              <select id="setPaaTgk" title="не разбирать — каждый контакт анонимно проверяется по t.me, канал/бот/приватка отсеиваются до старта окон (быстро, ~1 сек на контакт); выловить юзу — плюс к этому просмотр описания, закрепа и последних постов канала: найдена личка автора — она вписывается в профиль вместо канала и разбирается; не трогать — прежнее поведение, каналы тоже попадают в разбор.">
+                <option value="skip">не разбирать (отсеивать)</option>
+                <option value="probe">выловить юзу из канала → разбирать</option>
+                <option value="off">не трогать (как раньше)</option>
+              </select>
+            </label>
+            <label class="set-row"><span>Постов канала просмотреть</span>
+              <input type="number" id="setPaaTgkPosts" min="3" max="30" step="1" title="Сколько последних постов канала прочитать в поисках юзы автора (описание и закреп читаются всегда). Работает только в режиме «выловить юзу»." />
+            </label>
+          </div>
+
+          <!-- Модель TG-контакта (идеи 1/2), скрап таплинка/сайта (идея 4) и гейт по
+               IG-активности (идея 8). По умолчанию: legacy + скрап вкл + гейт выкл.
+               Описание карточки больше не висит в потоке семью строками: оно высвечивается
+               ПОД ЗАГОЛОВКОМ при наведении (тот же приём, что у тумблеров листов ③/④ —
+               плашка остаётся ровно такой высоты, какую занимают её поля). Нативный
+               title на заголовок не вешаем: глобальный #rmTip перехватывает [title] и
+               показал бы тот же текст вторым слоем. Класс tgk-model — чтобы все
+               новые отступы жили ТОЛЬКО в этой карточке: соседняя «📛 ТГК» — тот же
+               .tgk-card, и без своего класса она уехала бы следом, её не просили. -->
+          <div class="tgk-card tgk-model">
+            <h4 class="tgk-hd" tabindex="0">🧠 Модель TG-контакта<i class="tgk-i" aria-hidden="true">ⓘ</i><span class="tgk-tip">Старая система — консервативная (шапка + флаг «только по нику»). Новая — модель кандидатов с уверенностью и tier-гейтом (идеи парсера): Tier0 «угадан вслепую» не пускается в /list и окна, Tier3 требует доказанной лички. Переключение безопасно: legacy-флаги пишутся всегда.</span></h4>
+            <label class="set-row"><span>Система проверки контакта</span>
+              <select id="setTgModel" title="старая — как сейчас (поле telegram + флаг спекулятивности по дублю ника); новая — каждый TG-юз хранится кандидатом с источником/уверенностью, а решение «показывать / открывать окно» принимает единый tier-гейт.">
+                <option value="legacy">старая (как сейчас)</option>
+                <option value="cascade">новая (кандидаты + tier)</option>
+              </select>
+            </label>
+            <label class="set-chk" title="Телефон/WA/Telegram, опубликованные человеком на своём таплинке/сайте, — самый чистый контакт (уверенность published). Работает в обеих системах.Site недоступен/заблокирован — тихо ничего."><input type="checkbox" id="setSiteScrape" /> скрап таплинка/сайта на телефон/WA</label>
+            <label class="set-chk" title="Не тратить окно автоанализа на спящий профиль: если с последнего поста прошло больше порога дней — профиль не берётся. Дату определить не удалось — НЕ режем (fail-open)."><input type="checkbox" id="setGateAlive" /> гейт: не брать спящих по IG-активности</label>
+            <label class="set-row"><span>Макс. дней тишины</span>
+              <input type="number" id="setGateDays" min="2" max="365" step="1" title="Порог для гейта активности: профиль старше этого числа дней с последнего поста не попадает в автоанализ (когда гейт включён)." />
+            </label>
+          </div>
+        </aside>
+
+        <!-- ============ КНОПКА ② · АВТОАНАЛИЗ ============ -->
+        <div class="orb-col">
+          <div class="orb-wrap">
+            <div class="orb-aura" aria-hidden="true"></div>
+            <div class="orb-orbit oo-1" aria-hidden="true"><i class="orb-particle"></i></div>
+            <div class="orb-orbit oo-2" aria-hidden="true"><i class="orb-particle"></i></div>
+            <div class="orb-orbit oo-3" aria-hidden="true"><i class="orb-particle"></i></div>
+            <button id="btnPaaAuto" class="orb-btn orb-paa" title="Взять доказанно живых, открыть их Instagram, разобрать профиль и прислать промт">🧠<br>Автоанализ</button>
+          </div>
+          <div class="run-controls">
+            <button id="btnPaaAutoStop" class="btn-stop" disabled>⏹ Стоп анализ</button>
+          </div>
+          <div id="paaPanel" class="run-panel is-on">
+            <div class="rp-head">
+              <span class="rp-live">●</span>
+              <span class="rp-title">Сводка · Автоанализ</span>
+              <span class="rp-windows" id="pvWindows">0 окон</span>
+            </div>
+            <div class="rp-grid">
+              <div class="rp-cell"><b id="pvTotal">0</b><span>в очереди</span></div>
+              <div class="rp-cell"><b id="pvStarted">0</b><span>начато</span></div>
+              <div class="rp-cell grn"><b id="pvSent">0</b><span>отправлено</span></div>
+              <div class="rp-cell red"><b id="pvFailed">0</b><span>с ошибкой</span></div>
+              <div class="rp-cell vio"><b id="pvSkipped">0</b><span>пропущено</span></div>
+              <div class="rp-cell hl"><b id="pvSpeed">—</b><span>скорость</span></div>
+              <div class="rp-cell"><b id="pvUptime">—</b><span>в работе</span></div>
+              <div class="rp-cell wide"><b id="pvSource">только доказанно живые</b><span>отбор</span></div>
+            </div>
+          </div>
+          <div id="paaStatus" class="run-status">Автоанализ не запускался. Что разбирать и кого брать — настраивается справа (матрица + отбор).</div>
+        </div>
+
+        <aside class="orb-side orb-side-paa">
+          <h3>Автоанализ ②</h3>
+          <label class="set-row"><span>Кого брать</span>
+            <select id="setPaaSource" title="только доказанно живые — tgReal=да и это юзер; живые + непроверенные — берём и тех, до кого ревизия ещё не дошла (быстрее, но менее гарантированно)">
+              <option value="real">только доказанно живые</option>
+              <option value="real+unchecked">живые + непроверенные</option>
+            </select>
+          </label>
+          <label class="set-row"><span>Пол</span>
+            <select id="setPaaGender" title="Пол того, кого разбирает автоанализ. Считается так же, как бейдж «Квал: пол» в истории и «Пол донора» на листе ①: имя из базы имён + родовые окончания в тексте профиля; слова об аудитории («девушек», «женский клуб») не учитываются. «Все» (по умолчанию) — не фильтрует. При «женский/мужской» профили с нераспознанным полом не берутся — это жёсткий фильтр, как слова и диапазон сабов.">
+              <option value="all">Все</option>
+              <option value="f">Женский</option>
+              <option value="m">Мужской</option>
+            </select>
+          </label>
+          <label class="set-row"><span>Подписчиков от</span>
+            <input type="number" id="setPaaMin" min="0" max="10000000" step="100" placeholder="наследовать ①" title="Нижняя граница подписчиков для автоанализа. Пусто = наследовать общий диапазон с листа ①." />
+          </label>
+          <label class="set-row"><span>Подписчиков до</span>
+            <input type="number" id="setPaaMax" min="0" max="10000000" step="100" placeholder="наследовать ①" title="Верхняя граница подписчиков. Пусто = наследовать общий диапазон с листа ①." />
+          </label>
+          <label class="set-row"><span>Фильтр слов (через запятую)</span>
+            <input type="text" id="setPaaWords" placeholder="тренер, фитнес, зал — пусто = все" title="Брать только профили, где эти слова встречаются в описании/имени/нике. Пусто — разбирать всех подряд с TG." />
+          </label>
+          <label class="set-row"><span>Сколько слов совпадёт</span>
+            <select id="setPaaWordsMode" title="any — хватит любого слова из списка (мягче); all — профиль должен содержать все слова сразу (жёстче)">
+              <option value="any">хватит одного (мягче)</option>
+              <option value="all">нужны все (жёстче)</option>
+            </select>
+          </label>
+          <label class="set-row"><span>Лимит за прогон</span>
+            <input type="number" id="setPaaLimit" min="1" max="200" step="1" />
+          </label>
+          <label class="set-row"><span>Одновременно окон</span>
+            <input type="number" id="setPaaWindows" min="1" max="4" step="1" />
+          </label>
+          <label class="set-row"><span>Окна разбора</span>
+            <select id="setPaaWinMode" title="В фоновом окне Chrome замораживает видео и звук — рилсы не разбираются. 'Плитка' раскладывает окна по экрану (видны все, мышь не перехватываем, дашборд уезжает влево). 'На передний план' поднимает каждое окно сверху (надёжно для видео, но перехватывает фокус).">
+              <option value="tile">плитка — видны все, без перехвата</option>
+              <option value="front">на передний план — по одному</option>
+            </select>
+          </label>
+          <label class="set-row"><span>Пауза между стартами, сек</span>
+            <input type="number" id="setPaaGap" min="0" max="120" step="1" />
+          </label>
+          <label class="set-row" title="igx_paa_recheck. Профиль, который автоанализ уже РАЗБИРАЛ, повторно НЕ берётся: окна ушли бы на перечитывание того же человека, а он получил бы второй разбор (и второе сообщение, если он уже в рассылке). Срок смотрим по джобам igx_paa_job:* и по штампу paAt в самом профиле — то есть считает реально заводившиеся разборы, включая сбойные и зависшие (окно на них уже потрачено). 0 = НИКОГДА не переразбирать (по умолчанию; принудительный перечёк кнопкой «🔄 перечекать» в Истории работает всегда — он идёт отдельной очередью). N &gt; 0 = разрешить повтор, если разбор старше N дней. Ни один вариант не мешает брать НОВЫХ: очередь сортируется по принципу «кого меньше трогали», а не по алфавиту."><span>Не трогать разобранных за последние (дней; 0 = никогда)</span>
+            <input type="number" id="setPaaRecheck" min="0" max="3650" step="1" />
+          </label>
+          <label class="set-chk"><input type="checkbox" id="setPaaSend" /> слать готовый разбор в Telegram</label>
+          <p class="dash-muted small">Чат, безопасный режим и задержки — общие с листом ① (блок Telegram справа).</p>
+        </aside>
+      </div>
+
+      <!-- Матрица разбора — широкой полосой ПОД всем рядом кнопок: не лезет в
+           колонку и не перекрывает кнопки, поля идут слева направо на всю ширину. -->
+      <div class="paa-matrix-strip">
+        <h3>🧩 Что разбирать (матрица)</h3>
+        <p class="dash-muted small">Те же настройки, что у анализатора профиля на Instagram: меняешь здесь — автоанализ разбирает так же.</p>
+        <div class="paa-matrix-grid">
+          <label class="set-chk" title="Одиночное фото поста: один запрос к распознавалке"><input type="checkbox" id="setPaPhoto" /> 🖼 фото — текст на картинке</label>
+          <label class="set-chk" title="Карусель: читаем первые и последние слайды (хук и призыв)"><input type="checkbox" id="setPaSlides" /> 🎠 слайды карусели — текст со слайдов</label>
+          <label class="set-chk" title="С видео снимаем кадры с начала и конца и читаем текст — самый дорогой способ"><input type="checkbox" id="setPaVideoOcr" /> 🎬 видео — текст с кадров</label>
+          <label class="set-chk" title="С видео слушаем звук: начало и концовка, один запрос на ролик"><input type="checkbox" id="setPaVideoVoice" /> 🎙 видео — речь из звука</label>
+          <label class="set-chk" title="Метрики и шапка профиля — бесплатный DOM, читается всегда быстро"><input type="checkbox" id="setPaMeta" /> 📊 метрики и шапку профиля</label>
+          <label class="set-chk" title="Попросить нейросеть заодно описать, что изображено на картинке. Нужна нейронка: облачный ключ или локальная модель"><input type="checkbox" id="setPaVision" /> 👁 описывать то, что на картинке (Vision)</label>
+          <label class="set-chk" title="Нейронка смотрит ОБЛОЖКУ (превью) каждого видео — на ней часто крупно вынесена ТЕМА ролика. В отчёте появится строка «На превью: …; ТЕКСТ: …». +1 запрос на каждую видео-публикацию. Нужна нейронка"><input type="checkbox" id="setPaPreview" /> 🖼 превью видео — смотреть обложку</label>
+          <label class="set-chk" title="Нейронка смотрит кадр в начале (~1 с) и в конце (за ~3 с до финала) видео и понимает КОМПОЗИЦИЮ: сплит-экран (сверху человек, снизу чужой ролик/подкаст), вставки, нарезка, «говорящая голова». В отчёте — строка «🧬 Композиция/монтаж: …». Один запрос-коллаж на видео. Нужна нейронка"><input type="checkbox" id="setPaFormat" /> 🧬 формат кадра — начало и конец видео: сплит-экран, вставки, нарезка</label>
+          <label class="set-chk" title="Каждое закреплённое ВИДЕО: нейронка смотрит сетку кадров по всему ролику и пишет в конце разбора вердикт — есть там кейсы/разборы или мотивация-реклама, и стоит ли об этом говорить в рассылке. +1 запрос-коллаж на закреплённое видео. Нужна нейронка"><input type="checkbox" id="setPaPinScan" /> 📌 закрепы под микроскопом</label>
+          <label class="set-chk" title="Точный аудит ТИПА КОНТЕНТА: каждый пост выборки нейронка смотрит отдельно (2 кадра из начала + подпись + что слышно в аудио) и пишет «жанр: …; в кадре: …», в конце — подсчёт долей: «большая часть: рофл, поменьше: разговорный». +1 запрос на каждый пост аудита (+аудио-запрос на видео) — дольше, но точнее. Нужна нейронка"><input type="checkbox" id="setPaAudit" /> 🎭 тип контента — аудит постов</label>
+          <label class="set-chk" title="🛡 Чинит главную ночную беду: Instagram ставит рилс на паузу и не даёт стартовать, пока окно не в фокусе, а при «не удалось загрузить» анализатор зависал до ручного клика. С галкой: поднимает окно наверх (не чаще раза в 4с), перезапускает плеер, а не грузящееся видео честно пропускает вместо вечной паузы. Плюс на время разбора вкладка играет почти неслышный тон, чтобы Chrome не морозил фоновую вкладку (у вкладки значок 🔊). По умолчанию ВКЛ; минусы — окно лезет наверх само + значок 🔊"><input type="checkbox" id="setPaVguard" /> 🛡 анти-залипание видео — не виснуть на мёртвом рилсе, не морозить вкладку</label>
+          <label class="set-chk" title="🎧 Слушать ли АУДИО в аудите типа контента: с каждого видео-поста берётся короткий кусок начала и нейронка получает подсказку «речь по делу / просто музыка» — точнее различает «болтает по теме» и «качается под музыку». +1 ASR-запрос на каждый видео-пост аудита (заметно медленнее). Сними галку — аудит станет быстрым (2 кадра + подпись)"><input type="checkbox" id="setPaAuditAudio" /> 🎧 в аудите слушать аудио (+1 запрос на видео)</label>
+          <label class="set-row"><span>Секунд ждать видео в аудите</span>
+            <input type="number" id="setPaAuditWaitSec" min="0" max="15" step="1" title="Сколько секунд ждать ЗАГРУЗКИ видео в аудите перед съёмкой кадров. 0 — не ждать вовсе (незагруженный рилс пропускается сразу, аудит быстрее); больше — дольше даём плееру догрузиться" />
+          </label>
+          <label class="set-row"><span>Публикаций разбирать</span>
+            <input type="number" id="setPaCount" min="1" max="20" step="1" />
+          </label>
+          <label class="set-row"><span>Кадров на окно (нач/кон)</span>
+            <input type="number" id="setPaFrames" min="1" max="8" step="1" />
+          </label>
+          <label class="set-row"><span>Времени закрепам ×</span>
+            <input type="number" id="setPaPinAtt" min="1" max="3" step="1" title="Во сколько раз закреплённому видео уделяется больше времени: длиннее окна чтения, больше кадров и плотнее сетка для вердикта (галка «📌 закрепы под микроскопом»)" />
+          </label>
+          <label class="set-row"><span>Постов в аудит</span>
+            <input type="number" id="setPaAuditN" min="1" max="20" step="1" title="Сколько верхних постов сетки взять в аудит типа контента (галка «🎭»). Можно больше, чем «публикаций разбирать»: лишние посты не читаются целиком — 2 кадра из начала и один запрос нейронке на пост" />
+          </label>
+          <label class="set-row"><span>Видео: сек с начала</span>
+            <input type="number" id="setPaStart" min="1" max="60" step="1" />
+          </label>
+          <label class="set-row"><span>Видео: сек с конца</span>
+            <input type="number" id="setPaEnd" min="0" max="60" step="1" />
+          </label>
+          <label class="set-row"><span>Слайдов с начала</span>
+            <input type="number" id="setPaStartSl" min="1" max="10" step="1" />
+          </label>
+          <label class="set-row"><span>Слайдов с конца</span>
+            <input type="number" id="setPaEndSl" min="0" max="10" step="1" />
+          </label>
+        </div>
+      </div>
+
+      <!-- Нейронка: те же ключи storage, что читает панель анализатора на Instagram
+           (⚙) и оффскрин OCR — поменял здесь, применилось везде. -->
+      <div class="paa-matrix-strip">
+        <h3>🧠 Нейронка — ключ, модель, промпт</h3>
+        <p class="dash-muted small">Те же настройки, что в ⚙ анализатора на Instagram: облачный ключ и локальная модель — общие для всего разбора (кадры, слайды, Vision, аудит), свой промпт переопределяет встроенный на всех режимах.</p>
+        <div class="paa-matrix-grid">
+          <label class="set-row"><span>Облачный ключ (Groq/OpenAI)</span>
+            <input type="password" id="setAiApiKey" spellcheck="false" autocomplete="off" placeholder="gsk_… (бесплатно на console.groq.com) или sk-…" title="Ключ облачной нейросетки: распознавание кадров и описания картинок. Бесплатный Groq — на console.groq.com. Хранится только в этом браузере." />
+          </label>
+          <label class="set-chk" title="Локальная модель LM Studio читает без лимитов токенов на своём железе; сама цепочка движков (облако/локалка/Tesseract) не меняется"><input type="checkbox" id="setAiLocalOn" /> 🏠 локальная модель (LM Studio)</label>
+          <label class="set-row"><span>Кто читает первым</span>
+            <select id="setAiLocalOrder" title="Порядок движков распознавания, когда локальная модель включена: облако пробует первым, локалка на подхвате — наоборот — или локалка, а облако вообще не трогать (расход токенов нулевой).">
+              <option value="cloud">облако, локалка на подхвате</option>
+              <option value="local">локалка, облако на подхвате</option>
+              <option value="only">только локалка (облако не трогать)</option>
+            </select>
+          </label>
+          <label class="set-row"><span>Адрес LM Studio</span>
+            <input type="text" id="setAiLocalUrl" spellcheck="false" placeholder="http://localhost:1234" title="LM Studio → Developer → «Serve Model» (порт по умолчанию 1234). В LM Studio нужно включить Enable CORS, иначе запросы расширения блокируются." />
+          </label>
+          <label class="set-row"><span>Имя модели</span>
+            <input type="text" id="setAiLocalModel" spellcheck="false" placeholder="пусто — возьмём загруженную" title="Точное имя модели в LM Studio. Пусто — берётся та, что уже загружена." />
+          </label>
+        </div>
+        <label class="set-row ai-prompt-row"><span>Свой промпт для нейронки (пусто = встроенный)</span>
+          <textarea id="setAiPrompt" rows="3" spellcheck="false" placeholder="Пусто — используется встроенный промпт режима" title="Касается нейронки: облачного ключа и локальной модели LM Studio. Локальный Tesseract промпт не читает. При включённом 👁 оставь в тексте метки «Текст:» и «Что на слайде:» — по ним ответ раскладывается на два блока, иначе они слипнутся."></textarea>
+        </label>
+        <div class="ai-prompt-btns">
+          <button type="button" id="aiPromptClear" class="btn-small">↩ Встроенный промпт</button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="dash-muted small">
+      Ревизия и автоанализ работают без открытой вкладки Instagram — водителем очереди является эта страница, поэтому не закрывайте её во время прогона.
+    </footer>
+  </main>
+
+  <!-- ============ ЛИСТ 3: ТЕЛЕФОН — подключение и настройки моста «телефон → ПК» ============ -->
+  <main class="dash-page" data-page="3">
+    <!-- ВЕРХНЯЯ ПАНЕЛЬ: крупная иконка состояния (⅓ ширины) + сводка подключения.
+         ГЛАВНЫЙ ТУМБЛЕР моста (igx_sync_import_on) висит на верхней кромке этой плашки:
+         отдельной карточкой он занимал целый экран, а просили, чтобы «вовсе не занимал
+         места». Пока он выключен — всё внутри плашки, кроме самого тумблера, приглушено
+         и некликабельно. Глушим ДЕТЕЙ карточки, а не карточку целиком: opacity/filter/
+         pointer-events родителя ребёнок отменить не может, а тумблер обязан оставаться
+         живым. Описание высвечивается по наведению, поэтому нативный title снят: наш
+         глобальный тултип (#rmTip) ловит [title] и показал бы тот же текст вторым слоем. -->
+    <section class="dash-card ph-conn" id="phConn" data-state="off">
+      <label class="ph-master-switch">
+        <input type="checkbox" id="phMaster" />
+        <span class="ph-master-track" aria-hidden="true"><i></i></span>
+        <span class="ph-master-txt"><b>📲 Включить мост телефона</b><small>Управляет приёмником (igx_sync_import_on). Выключено — телефон не опрашивается, а настройки ниже заблокированы. Вкл поднимает окно phone\start-controller.bat, выкл его же закрывает (один раз нужно установить хост: launcher\install-host.bat).</small></span>
+      </label>
+      <div class="ph-conn-icon" id="phConnIcon" aria-hidden="true">
+        <span class="ph-conn-ring"></span>
+        <span class="ph-conn-ring ph-conn-ring--2"></span>
+        <svg class="ph-conn-glyph" viewBox="0 0 48 48" role="img" aria-label="телефон" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="15" y="6" width="18" height="34" rx="3.5"/><line x1="21.5" y1="35.5" x2="26.5" y2="35.5"/><path d="M37.5 13a9 9 0 0 1 0 14"/><path d="M10.5 27a9 9 0 0 1 0-14"/></svg>
+      </div>
+      <div class="ph-conn-body">
+        <div class="ph-conn-state" id="phConnState">Проверяю подключение…</div>
+        <div class="ph-conn-sub" id="phConnSub">Мост опрашивает локальный контроллер телефона.</div>
+        <div class="ph-conn-chips">
+          <span class="ph-chip off" id="phChipCtrl"><span class="ph-chip-ico"><svg viewBox="0 0 24 24" class="ph-ico"><rect x="2.5" y="4" width="19" height="12.5" rx="1.6"/><line x1="8.5" y1="20" x2="15.5" y2="20"/><line x1="12" y1="16.5" x2="12" y2="20"/></svg></span><span class="ph-chip-lb">контроллер</span><span class="ph-chip-st">—</span></span>
+          <span class="ph-chip off" id="phChipPhone"><span class="ph-chip-ico"><svg viewBox="0 0 24 24" class="ph-ico"><rect x="6.5" y="2.5" width="11" height="19" rx="2.2"/><line x1="10.3" y1="18.4" x2="13.7" y2="18.4"/></svg></span><span class="ph-chip-lb">телефон</span><span class="ph-chip-st">—</span></span>
+          <span class="ph-chip off" id="phChipScan"><span class="ph-chip-ico"><svg viewBox="0 0 24 24" class="ph-ico"><line x1="12" y1="20" x2="12" y2="11.5"/><path d="M7 11.5a5 5 0 0 1 10 0"/><path d="M9.4 11.5a2.6 2.6 0 0 1 5.2 0"/><circle cx="12" cy="11.5" r="1.1"/></svg></span><span class="ph-chip-lb">скан</span><span class="ph-chip-st">—</span></span>
+          <span class="ph-chip off" id="phChipBridge"><span class="ph-chip-ico"><svg viewBox="0 0 24 24" class="ph-ico"><path d="M3 13l2.8-7.5h12.4L21 13"/><path d="M3 13v6.5h18V13"/><path d="M3 13h5l1.4 2.4h5.2L16 13h5"/></svg></span><span class="ph-chip-lb">приёмник</span><span class="ph-chip-st">—</span></span>
+        </div>
+        <!-- ОШИБКИ ВНУТРИ ПЛАШКИ СТАТУСА (как на листе ④): отдельная мигающая карточка
+             «⚠️ Ошибки телефона» ниже создавала второе окно об одном и том же. -->
+        <div class="conn-alerts" id="phAlerts" hidden>
+          <div class="ph-alert-list" id="phAlertList"></div>
+        </div>
+      </div>
+      <div class="ph-conn-actions">
+        <button id="btnPhoneTest" class="btn-small" title="Опросить /status контроллера прямо сейчас">⟳ Проверить сейчас</button>
+        <button id="btnPhoneConnect" class="btn-small" title="Полная проба: adb + forward + DevTools-сокет Chrome на телефоне. Покажет внятную ошибку, если не цепляется.">🔌 Тест подключения телефона</button>
+      </div>
+    </section>
+
+    <!-- ОДНА ПЛАШКА НА ЛИСТЕ ③: ДВЕ ЖИРНЫЕ КНОПКИ ПО КРАЯМ, ПОСЕРЕДИНЕ НИХ —
+         ИНДИКАТОРЫ («что делают ЭТИ кнопки»), СТАТУС И СПИСОК УСТРОЙСТВ, А НИЖЕ —
+         ВСЕ НАСТРОЙКИ, внедрённые в эту же плашку. Дизайн — тот же, что на листе ②:
+         органы управления по краям, то, что к ним относится, — между ними. Раньше
+         рычаги (приёмник, доноры, режим скана) были отдельной карточкой ниже, из-за
+         чего кнопка и её настройки требовали двух экранов. Под одной плашкой всегда
+         жили и USB-телефоны, и эмуляторы (adb их не различает, контроллер — ещё как),
+         поэтому классы разведены по кнопкам: скан телефона и скан эмулятора независимы
+         и могут идти ОДНОВРЕМЕННО — у каждого девайса свой CDP-транспорт, свой tcp-порт
+         и свой прогон. Список adb показан открыто: это и есть ответ на «что он вообще
+         там нашёл». -->
+    <section class="dash-card ph-devs" id="phDevices">
+      <div class="ph-dev-hd">
+        <h2>📡 Что фермить: телефон и эмулятор</h2>
+        <div class="ph-dev-actions">
+          <button id="btnPhoneDevices" class="btn-small" title="Опросить /devices контроллера: серийники, DevTools-сокеты, установленные браузеры, живой прогресс. Звонит по типовым портам эмуляторов, поэтому может идти ~10с.">⟳ Обновить список</button>
+          <button id="btnPhoneAdbFix" class="btn-small" title="Перезапустить adb-сервер (kill-server + start-server). Нужно, когда контроллер пишет «adb запутался: more than one device/emulator», хотя устройство одно и серийник верный. Мгновенно слетают все tcp-forward'ы — чужие дебагеры (chrome://inspect) потеряют мост.">⟲ Починить adb</button>
+          <button id="btnPhoneDevReset" class="btn-small" title="Отменить выбор: команды без ?dev= (тумблер на листе ①) снова идут в единственное видимое устройство">⊘ Сбросить выбор</button>
+        </div>
+      </div>
+      <div class="ph-duo">
+        <!-- ORB ЛИСТА ②, НЕ «индикатор»: круг 176 + подпись ВНУТРИ круга + три
+             comet-кольца с частицами, которые заводятся только когда класс фермится.
+             Класс ph-ctl-lg — чтобы декор (аура, блик, пунктир) был один на весь
+             дашборд; ph-duo-orb — чтобы кнопками класса править из .ph-duo. -->
+        <div class="ph-duo-side ph-duo-side--usb">
+          <div class="phone-ctl ph-ctl-lg ph-duo-orb" id="phCtlUsb">
+            <div class="orb-orbit oo-1" aria-hidden="true"><i class="orb-particle"></i></div>
+            <div class="orb-orbit oo-2" aria-hidden="true"><i class="orb-particle"></i></div>
+            <div class="orb-orbit oo-3" aria-hidden="true"><i class="orb-particle"></i></div>
+            <button id="btnPhoneScanUsb" class="btn-phone" title="Запустить (или остановить) добычу на всех USB-телефонах, у которых внутри открыта вкладка браузера. Эмуляторы эта кнопка не трогает — они фермятся своей." aria-label="Скан на телефоне"><svg class="ph-btn-glyph ph-ico-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.6"/><line x1="10.2" y1="18.4" x2="13.8" y2="18.4"/></svg><svg class="ph-btn-glyph ph-ico-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2.2" fill="currentColor"/></svg><span class="ph-btn-cap">Скан по USB</span></button>
+          </div>
+          <div class="ph-duo-hint" id="phUsbHint">список ещё не запрошен — «⟳ Обновить список»</div>
+          <!-- СБОРКА 38: столбец настроек СКАНА переехал под СВОЮ кнопку (просил:
+               «Скан на телефоне — под кнопкой телефона»). Отделён пунктиром (CSS .ph-duo-side .ph-col). -->
+        <div class="ph-col ph-col-r">
+          <h3>Скан на телефоне</h3>
+          <label class="set-row"><span>Что телефон добывает</span>
+            <select id="phMode" title="igx_phone_mode — основной режим (как на ПК): телефон открывает список донора и вбивает слово в поле «Поиск» внутри него, беря лишь подходящие аккаунты.">
+              <option value="search">🔎 Искать слово в списке донора (как на ПК — основной)</option>
+              <option value="followers">👥 Просто листать весь список донора</option>
+            </select></label>
+          <label class="set-row"><span>Какой список донора смотреть</span>
+            <select id="phListKind" title="igx_phone_list_kind — «подписчики» = кто подписан на донора; «подписки» = на кого смотрит сам донор. Режим поиска фильтрует выбранный список твоим словом.">
+              <option value="followers">👥 Подписчики донора</option>
+              <option value="following">➡️ Подписки донора (на кого он смотрит)</option>
+            </select></label>
+          <div class="only-search">
+            <label class="set-row"><span>Слова для поиска (через запятую)</span>
+              <textarea id="phKeywords" rows="2" spellcheck="false" placeholder="например: тренер, фитнес, нутрициолог, йога — пусто = возьму «Слово донора» из настроек основной панели" title="igx_phone_keywords — телефон вобьёт каждое слово в поле «Поиск» списка донора и соберёт лишь подошедшие ники." style="width:100%;resize:vertical;min-height:44px;font-family:inherit;font-size:13px;background:rgba(255,255,255,.04);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;box-sizing:border-box;"></textarea></label>
+            <label class="set-row"><span>Макс. ников с одного слова (0 = сколько отдаст IG)</span>
+              <input type="number" id="phMaxPerKw" min="0" max="5000" step="10" title="igx_phone_max_per_kw — кап отфильтрованных ников, снимаемых по одному слову у одного донора. Меньше = ниже риск бана телефона." /></label>
+          </div>
+          <label class="set-row"><span>Ник донора (пусто = рандомный из базы)</span>
+            <input type="text" id="phSeedInput" spellcheck="false" placeholder="пусто = рандомный из базы; или например fitness_moscow" /></label>
+          <div class="only-followers">
+            <label class="set-row"><span>Макс. ников с одного донора (0 = весь список)</span>
+              <input type="number" id="phMaxPerSeed" min="0" max="5000" step="10" title="igx_phone_max_per_seed — кап аккаунтов, снимаемых с одного донора. Меньше = ниже риск бана телефона. 0 = снимать весь список." /></label>
+          </div>
+          <label class="set-chk" title="Как бесконечный режим на ПК: отработав текущий круг доноров, телефон начинает новый по кругу без остановки, пока не нажмёшь «Стоп» (ключ igx_phone_infinite)."><input type="checkbox" id="phInfiniteOn" /> ♾ Бесконечный режим: идти по кругу без остановки</label>
+          <label class="set-chk" title="Анти-стоп: если телефон случайно отвалился от USB, контроллер не роняет скан, а ждёт указанное время возврата — вернулся в срок, проверка продолжается с того же места. Выключено — скан падает сразу при обрыве (ключ igx_phone_grace_on)."><input type="checkbox" id="phGraceOn" /> 🩹 Анти-стоп: переживать случайный отвал USB</label>
+          <label class="set-row"><span>Сколько секунд ждать возврата телефона</span>
+            <input type="number" id="phGraceSec" min="0" max="600" step="5" title="igx_phone_grace_sec — окно на переподключение USB (0 = не ждать)." /></label>
+          <div class="run-row">
+            <button id="btnPhoneStart" class="btn-small" title="GET /start на контроллере (режим берётся с /settings)">📡 Сканировать</button>
+            <button id="btnPhonePause" class="btn-small" title="Пауза/продолжить текущего скана на телефоне (GET /pause). Останавливает перебор доноров, но не рвёт прогон." disabled>⏸ Пауза</button>
+            <button id="btnPhoneStop" class="btn-small" title="GET /stop на контроллере">⏹ Стоп</button>
+            <button id="btnPhoneStopCheck" class="btn-small" title="Остановить проверку того, что насобирал телефон: сбросить очередь быстрой проверки на ПК (номера уже проверенных останутся в «передано»)." style="flex:1 1 100%">🚫 Не проверять собранное</button>
+          </div>
+          <div id="phRunStatus" class="run-status">Сканом управляет сам контроллер телефона.</div>
+          <p class="dash-muted small">Телефон должен быть виден <code>adb devices</code> и залогинен во второй аккаунт в Chrome. Контроллер на ПК: <code>node phone/controller.js</code>.</p>
+        </div>
+        </div>
+        <!-- СЕРЕДИНА: между двумя кнопками — индикаторы прогона, общий статус,
+             пояснение и сам список устройств. Кнопки над ними, а не «где-то сбоку
+             от отчёта». -->
+        <div class="ph-duo-mid">
+          <!-- ИНДИКАТОРЫ ПОСЕРЕДИНЕ КНОПОК: «собрано / в очереди / передано» отвечают на
+               вопрос «что делают ЭТИ две кнопки», поэтому стоят между ними, а не в чужой
+               плашке настроек внизу страницы. -->
+          <div class="ph-board-stats">
+            <div class="rp-head">
+              <span class="rp-live">●</span>
+              <span class="rp-title">Индикаторы</span>
+              <span class="rp-windows" id="phUpdated">—</span>
+            </div>
+            <div class="rp-grid">
+              <div class="rp-cell"><b id="phCollected">—</b><span>собрано</span></div>
+              <div class="rp-cell"><b id="phImpQueue">0</b><span id="phImpQueueLbl">в очереди</span></div>
+              <div class="rp-cell"><b id="phImpDone">0</b><span>передано</span></div>
+            </div>
+            <div class="rp-rows">
+              <div class="rp-row"><span>донор / слово</span><b id="phSeed" title="текущий донор и слово">—</b></div>
+              <div class="rp-row"><span>режим</span><b id="phScanMode" title="режим скана телефона">—</b></div>
+              <div class="rp-row"><span>в журнале</span><b id="phJournal">0</b></div>
+            </div>
+            <div class="rp-err"><b id="phError">нет подписей · ошибка контроллера</b></div>
+          </div>
+          <div id="phDevStatus" class="run-status">Устройство не выбиралось — команды без ?dev= идут в единственное видимое.</div>
+          <p class="dash-hint">
+            Кнопки по краям включают СВОЙ класс устройств и не мешают друг другу.
+            <b>Сокет есть только при открытой странице:</b> пустой DevTools = вкладка
+            закрыта, а не «нельзя». На телефоне сокет дают Beta/Canary, в LDPlayer 14 —
+            стабильный Chrome.
+          </p>
+          <div class="ph-dev-list" id="phDevList"><div class="ph-dev-empty">Список ещё не запрошен — нажми «⟳ Обновить список».</div></div>
+        </div>
+        <div class="ph-duo-side ph-duo-side--emu">
+          <div class="phone-ctl ph-ctl-lg ph-duo-orb" id="phCtlEmu">
+            <div class="orb-orbit oo-1" aria-hidden="true"><i class="orb-particle"></i></div>
+            <div class="orb-orbit oo-2" aria-hidden="true"><i class="orb-particle"></i></div>
+            <div class="orb-orbit oo-3" aria-hidden="true"><i class="orb-particle"></i></div>
+            <button id="btnPhoneScanEmu" class="btn-phone" title="Запустить (или остановить) добычу на всех эмуляторах (LDPlayer, BlueStacks, adb connect), у которых внутри открыта вкладка. Телефон этой кнопки не трогает — обе можно держать включёнными сразу." aria-label="Скан на эмуляторе"><svg class="ph-btn-glyph ph-ico-emu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="12.5" rx="1.6"/><line x1="8.5" y1="20" x2="15.5" y2="20"/><line x1="12" y1="16.5" x2="12" y2="20"/></svg><svg class="ph-btn-glyph ph-ico-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2.2" fill="currentColor"/></svg><span class="ph-btn-cap">Скан по эмуляторам</span></button>
+          </div>
+          <div class="ph-duo-hint" id="phEmuHint">список ещё не запрошен — «⟳ Обновить список»</div>
+          <!-- СБОРКА 38: столбец «Приёмник на ПК» — под СВОЕЙ кнопкой эмулятора (просил:
+               «приемник на пк под кнопкой эмулятора»). -->
+        <div class="ph-col ph-col-m">
+          <h3>Приёмник на ПК</h3>
+          <label class="set-chk" title="Если Instagram забанил ПК-аккаунт, а телефон виден и приёмник включён — автоматически поднять ОДИН скан на телефоне, чтобы добыча ников не встала. По умолчанию выключено (ключ igx_phone_failover)."><input type="checkbox" id="phFailoverOn" /> 🤝 Авто-переход на телефон при бане ПК</label>
+          <label class="set-row"><span>Адрес эндпоинта контроллера</span>
+            <input type="text" id="phImportUrl" spellcheck="false" placeholder="http://localhost:8799/new-leads" title="Ключ igx_sync_import_url. На этом же хосте/порту контроллер отдаёт /status, /start, /stop." /></label>
+          <label class="set-chk" title="Копить журнал находок в общую базу-зеркало outbox (ключ igx_sync_on) — предшественник моста, полезно для бэкапа/экспорта."><input type="checkbox" id="phJournalOn" /> 📒 Журнал находок (outbox-зеркало)</label>
+          <div class="ph-donor-box">
+            <div class="ph-donor-hd">🎯 Кого брать в доноры <span class="ph-donor-sub">— пусто = как на панели</span></div>
+            <div class="ph-donor-grid">
+              <div class="set-duo">
+                <label class="set-row"><span>Мин. подписчиков</span>
+                  <input type="number" id="phDonorMin" min="0" max="2000000" step="10" title="igx_phone_donor_min — донор с меньшим числом подписчиков не берётся. Пусто = наследовать порог с основной панели. 0-подписных доноров отсекаем всегда, даже при пустом поле." /></label>
+                <label class="set-row"><span>Макс. (0 = без потолка)</span>
+                  <input type="number" id="phDonorMax" min="0" max="20000000" step="100" title="igx_phone_donor_max — донор-миллионник прячет список и поиск, поэтому ставь потолок. 0 = без потолка." /></label>
+              </div>
+              <label class="set-row"><span>Пол донора</span>
+                <select id="phDonorGender" title="igx_phone_donor_gender — брать доноров только женского / мужского пола (тот же признак, что фильтр на основной панели).">
+                  <option value="">Как на основной панели</option>
+                  <option value="all">Любой</option>
+                  <option value="f">Только женский</option>
+                  <option value="m">Только мужской</option>
+                </select></label>
+              <label class="set-chk" title="igx_phone_donor_only_tg — брать в доноры только те аккаунты, у которых уже найден Telegram (зелёные). Пусто = не ограничивать."><input type="checkbox" id="phDonorOnlyTg" /> 🟢 Только доноры с найденным Telegram</label>
+            </div>
+            <div class="ph-donor-grid">
+              <label class="set-row"><span>Слово в био/имени донора (через запятую = любое)</span>
+                <input type="text" id="phDonorWord" spellcheck="false" placeholder="например: тренер, фитнес, нутрициолог — пусто = «Слово донора» с основной панели" title="igx_phone_donor_word — берём только доноров, у которых одно из слов встречается в био/имени/нике (донор в нужной нише → и в его подписчиках вероятны эксперты)." /></label>
+            </div>
+            <div class="ph-donor-note" id="phDonorNote">Доноры под фильтр ещё не считались.</div>
+          </div>
+          <p class="dash-muted small">Приёмник дёргает существующую «быструю проверку» — сам ничего в базу профилей не пишет. Смена адреса применяется на следующем опросе.</p>
+        </div>
+        </div>
+      </div>
+      <!-- СБОРКА 38 по жалобе «умести настройки ПОД кнопки, а не снизу рядом текстом»:
+           столбцы «Скан на телефоне» и «Приёмник на ПК» переехали из этого ряда ВНУТРЬ
+           боковых гнёзд (.ph-duo-side) — каждый под свою кнопку. Обёртка .ph-board-grid
+           упразднена; мелкие «📡 Сканировать / ⏸ Пауза / ⏹ Стоп» — дубль двух кнопок ряда
+           выше (тот же /start без выбора класса), переехали вместе со столбцом как есть. -->
+    </section>
+
+    <!-- ПЛАШКА «🔌 Мост «телефон → ПК»» — ПОСЛЕДНИЙ СМЫСЛОВОЙ БЛОК ПЕРЕД ТУТОРИАЛОМ:
+         заголовок + пояснение на всю ширину. Настройки из-под неё уехали в плашку
+         с кнопками, поэтому здесь только объяснение, зачем мост вообще нужен. -->
+    <section class="dash-card ph-intro" id="phSettings">
+      <h2>🔌 Мост «телефон → ПК»</h2>
+      <p class="dash-hint">
+        Телефон (второй IG-аккаунт через ADB+CDP) делает только тяжёлую/«банобосную» добычу ников.
+        <b>Основной режим — как на ПК:</b> телефон открывает <b>подписчиков донора</b> и вбивает твоё
+        слово прямо в поле «Поиск» внутри этого списка, беря лишь подходящих (а не 700 подряд). Пустой
+        донор — молча берёт следующего: это НЕ ошибка и экран алым не краснит. Старый режим 👥 — листать
+        весь список. Проверка Telegram и разбор всегда на ПК: каждый ник идёт в обычную быструю проверку.
+        Суммарный лимит ≈ ×2. Всё по умолчанию <b>выключено</b> и основной код не затрагивает.
+      </p>
+    </section>
+
+    <!-- ЕДИНЫЙ ТУТОРИАЛ ЛИСТА ③. Раньше под змейкой «Как подключить» жила отдельная
+         карточка плиток по эмулятору: два разных дизайна про одно и то же, и человек
+         пролистывал оба, прежде чем нашёл свой способ. Теперь ОДНА карточка, одни и те
+         же плитки (sq-guide), а переключатель сверху показывает только тот набор шагов,
+         который выбран. Туториал НИКАК не управляет фермой: классы устройств включаются
+         своими кнопками в блоке «Что фермить» выше и могут работать одновременно. -->
+    <section class="dash-card sq-help sq-help--p3 ph-help" id="phHelp" data-tut="phone">
+      <div class="ph-help-hd">
+        <h2 class="sq-help-title ph-help-title">Как подключить — по шагам</h2>
+        <div class="dash-seg" role="tablist" aria-label="Что подключаем">
+          <button type="button" id="segP3Phone" class="dash-seg-btn is-on" role="tab" aria-selected="true" title="Реальный телефон по USB: Chrome Beta/Canary, отладка по USB, один аккаунт который не жалко">📱 Телефон</button>
+          <button type="button" id="segP3Emu" class="dash-seg-btn" role="tab" aria-selected="false" title="Эмулятор на ПК (LDPlayer 14, BlueStacks): свои порты, свой Chrome, несколько инстансов разом">🧪 Эмулятор</button>
+        </div>
+      </div>
+
+      <!-- телефон: 5 шагов (бывшая змейка приведена к плиткам туториала) -->
+      <div class="sq-guide p3-tut p3-tut-phone" style="--sqn:5">
+        <div class="sq-step" style="--rot:-2deg;--ln:44px">
+          <div class="sq-node"><span class="sq-num">1</span><span class="sq-lb">Телефон</span></div>
+          <i class="sq-line"></i>
+          <div class="sq-card"><b>Один раз на самом телефоне.</b> «Настройки → Для разработчиков» → включи <b>Отладку по USB</b>. Поставь <b>Chrome Beta / Canary</b> (обычный Chrome не даёт DevTools-сокет) и залогинь <b>второй</b> аккаунт Instagram.</div>
+        </div>
+        <div class="sq-step" style="--rot:2deg;--ln:22px">
+          <div class="sq-node"><span class="sq-num">2</span><span class="sq-lb">USB</span></div>
+          <i class="sq-line"></i>
+          <div class="sq-card"><b>ПК — подключи и разреши.</b> Воткни кабель, на экране телефона — «Разрешить отладку по USB». Проверь <code>adb devices</code>: должно быть <code>device</code>, а не <code>unauthorized</code>.</div>
+        </div>
+        <div class="sq-step" style="--rot:-1.5deg;--ln:66px">
+          <div class="sq-node"><span class="sq-num">3</span><span class="sq-lb">Контроллер</span></div>
+          <i class="sq-line"></i>
+          <div class="sq-card"><b>ПК — подними контроллер.</b> Рядом с <code>phone/controller.js</code>: <code>npm i ws</code>, затем <code>node phone/controller.js</code>.</div>
+        </div>
+        <div class="sq-step" style="--rot:1.5deg;--ln:34px">
+          <div class="sq-node"><span class="sq-num">4</span><span class="sq-lb">Проба</span></div>
+          <i class="sq-line"></i>
+          <div class="sq-card"><b>Проверь связь.</b> Жми <b>🔌 Тест подключения телефона</b> в плашке статуса — он прогонит adb → forward → DevTools целиком и покажет внятную ошибку. Либо <code>/status</code>: должно быть <code>"deviceSeen": true</code>.</div>
+        </div>
+        <div class="sq-step" style="--rot:-2.5deg;--ln:52px">
+          <div class="sq-node"><span class="sq-num">5</span><span class="sq-lb">Старт</span></div>
+          <i class="sq-line"></i>
+          <div class="sq-card"><b>Запусти добычу.</b> Включи <b>📲 Включить мост телефона</b> наверху, впиши ник донора и жми круглую <b>📱 Телефон по USB</b> в блоке «Что фермить». Телефон листает подписчиков, ПК проверяет их Telegram.</div>
+        </div>
+      </div>
+      <p class="dash-muted small p3-tut p3-tut-phone" style="color:#ffc27a">⚠️ Если при открытии instagram.com телефон кидает в приложение Instagram: «Настройки → Приложения → Instagram → Открывать по умолчанию» → выключи «Открывать поддерживаемые ссылки». <b>Нужен настоящий Chrome</b> из Play Store (обычного стабильного достаточно в LDPlayer 14 — проверено; на реальном телефоне стабильный Chrome сокет не поднимает, там нужна Beta/Canary). Все эти «Chrome Safari» и подобные клоны не годятся: они не дают DevTools-сокет (и часто малварь).</p>
+
+      <!-- эмулятор: те же плитки, самый частый вопрос — «а сокет-то вообще будет?» -->
+      <div class="sq-guide p3-tut p3-tut-emu" style="--sqn:4">
+        <div class="sq-step" style="--rot:-2deg;--ln:44px">
+          <div class="sq-node"><span class="sq-num">1</span><span class="sq-lb">Эмулятор</span></div>
+          <i class="sq-line"></i>
+          <div class="sq-card"><b>Один инстанс для пробы.</b> Лучше <b>LDPlayer 14</b> (Android 14, дружит с Hyper-V/VBS на Windows 11) — в нём обычный Chrome сразу отдаёт DevTools-сокет. LDPlayer 9 и BlueStacks 5 тоже подходят, но <b>не держи 9 и 14 вместе</b>: оба лезут на порт 5555. В настройках инстанса включи «ADB / USB debugging», иначе adb его не увидит. Ориентир по ресурсам: ~2 ГБ ОЗУ и 2 ядра на инстанс. Реклама порнухи вырубается так: LD Store отключается командой <code>adb shell pm disable-user --user 0 com.android.ld.appstore</code>, а объявления самого лаунчера — только рутем или сторонним лаунчером.</div>
+        </div>
+        <div class="sq-step" style="--rot:2deg;--ln:22px">
+          <div class="sq-node"><span class="sq-num">2</span><span class="sq-lb">Браузер</span></div>
+          <i class="sq-line"></i>
+          <div class="sq-card"><b>Браузер — а ставиться ли он, не так важно.</b> Контроллер работает через DevTools-сокет Android. На реальном телефоне стабильный Chrome его НЕ поднимает — нужен Beta/Canary. В LDPlayer 14 сокет отдаёт даже обычный Chrome, который уже стоит: отдельно ничего качать не надо, просто открой в нём любую страницу.</div>
+        </div>
+        <div class="sq-step" style="--rot:-1.5deg;--ln:66px">
+          <div class="sq-node"><span class="sq-num">3</span><span class="sq-lb">Аккаунт</span></div>
+          <i class="sq-line"></i>
+          <div class="sq-card"><b>Аккаунт, который не жалко.</b> Залогинь Instagram внутри эмулятора руками. Эмулятор — рутый x86-девайс без телефонии, и с VPN-подсети дата-центра он выглядит для IG подозрительнее, чем живой телефон: не ставь туда основной аккаунт.</div>
+        </div>
+        <div class="sq-step" style="--rot:1.5deg;--ln:34px">
+          <div class="sq-node"><span class="sq-num">4</span><span class="sq-lb">Проба</span></div>
+          <i class="sq-line"></i>
+          <div class="sq-card"><b>«⟳ Обновить список», потом кнопка «🧪 Эмулятор».</b> Перезапусти контроллер и посмотри список: у девайса есть DevTools-сокет — жми круглую кнопку эмулятора (или «▶ Скан» прямо на его строке под катом, если нужны порты и ошибки по конкретному девайсу). «Сделать активным» — это только дефолтная цель для тумблера на листе ①. Сокет пуст, а браузер в списке есть — значит вкладка просто закрыта: открой в браузере любую страницу и обнови список. Стоп-фактор только один — если из списка браузеров внутри устройства не стоит НИ ОДНОГО.</div>
+        </div>
+      </div>
+      <p class="dash-muted small p3-tut p3-tut-emu">Эмуляторы и телефоны фермятся параллельно: у каждого класса своя круглая кнопка выше, обе можно держать включёнными сразу. Темп и находки на листе ① складываются. Ориентир по ресурсам: ~2 ГБ ОЗУ и 2 ядра на инстанс эмулятора, плюс отдельный Chrome-профиль на каждое окно ПК.</p>
+
+      <p class="dash-muted small">scrcpy не обязателен — это только трансляция экрана. Управление идёт по ADB → DevTools-сокет браузера, а не через scrcpy. <b>Как это работает:</b> телефон делает тяжёлую добычу ников (листает подписчиков вторым аккаунтом), а ПК проверяет их Telegram своим веб-сиденьем — эта проверка от бана Instagram <b>не зависит</b>. Поэтому при бане ПК добыча через телефон продолжается и потоку лидов это не мешает.</p>
+    </section>
+
+    <footer class="dash-muted small">
+      Страница обращается к контроллеру по <code>http://localhost:…</code> (разрешено хост-пермиссией <code>&lt;all_urls&gt;</code>). Индикаторы слева-направо — что реально отдаёт телефон и что принял ПК.
+    </footer>
+  </main>
+
+  <!-- ============ ЛИСТ 4: TG-АККАУНТЫ — «кому уже писал» (мост tgbridge) ============ -->
+  <main class="dash-page" data-page="4">
+    <!-- ПЛАШКА-ЦЕНТР ЛИСТА ④, ОДНА СЕТКА НА 2×2 (как на листе ② — там орб тоже стоит
+         СВОБОДНО, а не в рамке внутри рамки): СЛЕВА ВВЕРХУ орб запуска, ПОД НИМ —
+         настройки той же ширины; СПРАВА ВВЕРХУ большая иконка моста + состояние + чипы,
+         ПОД НИМИ — окно прохода, растянутое до правого края плашки и до низа настроек.
+         Ошибки закреплены СВЕРХУ окна прохода и висят, пока активны: «мост на связи,
+         но аккаунт в спамблоке» — это не событие из прошлого, а текущее состояние. -->
+    <section class="dash-card ph-conn ta-conn ta-main" id="taConn" data-state="off">
+      <!-- ТУМБЛЕР ЛИСТА ④ — тот же приём, что на листе ③: висит на верхней кромке
+           плашки и места в потоке не занимает. Пишет ОДИН ключ igx_tgacc_master_on и
+           делает две вещи: добавляет на шкалу риска четыре лампочки про TG (tgSensors)
+           и ВКЛЮЧАЕТ сам лист. Выключен — весь лист приглушён по детям (.ta-locked),
+           кнопки не нажимаются, тумблер остаётся живым. Раньше экран от него не гас и
+           «выключенный» лист продолжал нажиматься как рабочий. -->
+      <label class="ph-master-switch ta-master">
+        <input type="checkbox" id="taMaster" />
+        <span class="ph-master-track" aria-hidden="true"><i></i></span>
+        <span class="ph-master-txt"><b>✈ Включить лист TG-аккаунтов</b><small>Выключено — весь лист приглушён и кнопки не нажимаются, мост не поднят, а на шкале риска не будет четырёх TG-лампочек (мост, аккаунты, FLOOD_WAIT, спамблок). Вкл поднимает окно tgbridge\start-bridge.bat, выкл его же закрывает; лидам этот тумблер не пишет ничего (один ключ igx_tgacc_master_on).</small></span>
+      </label>
+      <!-- ЗОНА ЗАПУСКА: орб как на листе ② — круг 176, аура, блик и три comet-кольца,
+           СВОЕЙ РАМКИ у него больше нет (была «кнопка в плашке в плашке»). Подпись ПОД НИМ:
+           её текст меняет JS («▶ Проверить…» / «⏹ Остановить проход» / «▶ Нужен… вход»),
+           в круг такая строка не влезает — держим её отдельной, под орбом. -->
+      <div class="ph-launch ta-launch">
+        <div class="phone-ctl ph-ctl-lg ta-ctl" id="taCtl">
+          <div class="orb-orbit oo-1" aria-hidden="true"><i class="orb-particle"></i></div>
+          <div class="orb-orbit oo-2" aria-hidden="true"><i class="orb-particle"></i></div>
+          <div class="orb-orbit oo-3" aria-hidden="true"><i class="orb-particle"></i></div>
+          <span class="ta-prog" id="taProg" aria-hidden="true"></span>
+          <button id="btnTgaccCheck" class="btn-phone" title="Снять диалоги всех аккаунтов и разметить базу: кому уже писал, кому нет. Повторный клик — стоп." aria-label="Проверить, кому писал"><svg class="ph-btn-glyph ph-ico-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 20 5l-2.6 13-6.2-3.1"/><path d="M11.2 14.9 7.4 18.3 6.9 13"/></svg><svg class="ph-btn-glyph ph-ico-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2.2" fill="currentColor"/></svg></button>
+        </div>
+        <div class="ph-launch-txt">
+          <div class="ph-launch-label" id="taLaunchLabel">▶ Проверить, кому уже писал</div>
+          <div class="ph-launch-hint" id="taLaunchHint">Сначала добавь и залогинь аккаунты ниже. Повторный клик останавливает проход.</div>
+        </div>
+      </div>
+      <!-- СТАТУС МОСТА: КВАДРАТНАЯ иконка, рядом с ней заголовок и описание, а
+           чипы-индикаторы — ОТДЕЛЬНОЙ строкой ПОД ними (раньше были прижаты к низу
+           иконки справа и сама иконка растягивалась в прямоугольник). Пунктирная
+           полоска над чипами — та же, что на листе ③ отделяет ошибки от индикаторов;
+           здесь она отделяет индикаторы от заголовка с описанием, которые выше. -->
+      <div class="ta-head-info">
+        <div class="ph-conn-icon" id="taConnIcon" aria-hidden="true">
+          <span class="ph-conn-ring"></span>
+          <span class="ph-conn-ring ph-conn-ring--2"></span>
+          <svg class="ph-conn-glyph" viewBox="0 0 48 48" role="img" aria-label="Telegram" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 23.5 41 9.5l-5.6 27.2-11.8-6.1"/><path d="M23.6 30.6 17.4 36l-.9-7.6"/><path d="M6 23.5 41 9.5"/></svg>
+        </div>
+        <div class="ph-conn-body">
+          <div class="ph-conn-state" id="taState">Проверяю мост…</div>
+          <div class="ph-conn-sub" id="taSub">Мост <code>tgbridge</code> читает списки диалогов твоих Telegram-аккаунтов. Лидам он не отправляет ничего.</div>
+        </div>
+        <div class="ph-conn-chips" id="taChips"></div>
+      </div><!-- /ta-head-info -->
+
+      <!-- НАСТРОЙКИ: вторая строка левой колонки — ровно ПОД КНОПКОЙ и ровно её
+           колонкой по ширине (240 px = внешнее comet-кольцо орба). -->
+      <div class="ta-set">
+          <h3>Настройки проверки</h3>
+          <label class="set-row"><span>Адрес моста (tgbridge)</span>
+            <input type="text" id="taBridgeUrl" spellcheck="false" placeholder="http://localhost:8800" title="Ключ igx_tgacc_settings.bridgeUrl. Порт берётся из tgbridge/config.json (env TGBRIDGE_PORT)." /></label>
+          <label class="set-chk" title="Глубокая проверка: для диалогов, найденных в списке, читать ещё и историю (GetHistory limit=50) и искать ИСХОДЯЩИЕ от тебя сообщения. Медленнее и ближе к FloodWait — включай точечно. (ключ deep)"><input type="checkbox" id="taDeep" /> 🔎 Глубокая проверка (смотреть исходящие в истории)</label>
+          <label class="set-chk" title="Мост сам пишет /start в @SpamBot и читает ответ, чтобы показать, есть ли спамблок. Не чаще раза в N часов на аккаунт. (ключ autoSpam)"><input type="checkbox" id="taAutoSpam" /> 🛡 Автопроверка спамблока через @SpamBot</label>
+          <label class="set-row"><span>Период автопроверки спамблока (часы)</span>
+            <input type="number" id="taSpamMinH" min="1" max="168" step="1" title="igx_tgacc_settings.spamMinH — как часто обновять ответ @SpamBot." /></label>
+          <label class="set-row"><span>Троттлинг между лидами при рассылке (мс)</span>
+            <input type="number" id="taThrottle" min="100" max="60000" step="100" title="igx_tgacc_settings.throttleMs — пауза между отправками разборов в /list рассылка." /></label>
+          <div class="ta-excl">
+            <div class="ta-excl-hd">Кого не брать в выборку</div>
+            <label class="set-chk" title="Лиды без Telegram-хэндла проверять нечем — сразу отсечь. (ключ excl.noTG)"><input type="checkbox" id="taExclNoTG" /> 🚫 без TG</label>
+            <label class="set-chk" title="Каналы/боты (ТГК) — не люди: писать им бессмысленно. (ключ excl.notUser)"><input type="checkbox" id="taExclNotUser" /> 📢 не личка (канал, бот)</label>
+          </div>
+          <div class="run-row">
+            <button id="btnTaSave" class="btn-small" title="Записать igx_tgacc_settings">💾 Сохранить настройки</button>
+            <button id="btnTaForgetMarks" class="btn-small" title="Снять ОТМЕТКИ «писал» со всех профилей базы (сами снимки диалогов и аккаунты не трогаются). Нужна, если размечал зря." style="flex:1 1 100%">🧹 Забыть все отметки «писал»</button>
+          </div>
+          <div id="taSetStatus" class="run-status">Настройки не менялись.</div>
+      </div><!-- /ta-set -->
+      <!-- ВТОРАЯ СТРОКА ПРАВОЙ КОЛОНКИ: окно прохода — от левого края большой иконки
+           до правого края плашки, по высоте до низа настроек. Сперва ошибки (пока
+           живые — они всегда наверху), ниже — чем проход занят прямо сейчас. -->
+      <div class="ta-live">
+          <div class="ta-live-hd">🔍 Кого проверил и что упало</div>
+          <div class="conn-alerts" id="taAlerts" hidden>
+            <div class="ph-alert-list" id="taAlertList"></div>
+          </div>
+          <div id="taRunStatus" class="run-status">Мост ещё не опрошен.</div>
+          <p class="dash-muted small">Проход идёт по одному аккаунту за раз: <code>/sync</code> (список диалогов) → матчинг с базой <code>igx_profile:*</code> → запись отметки. «Глубокая проверка» добирает историю только по найденным диалогам.</p>
+          <div class="ph-conn-actions">
+            <button id="btnTaTest" class="btn-small" title="Опросить /status моста прямо сейчас">⟳ Проверить мост</button>
+            <button id="btnTaSyncAll" class="btn-small" title="Снять диалоги подряд со всех залогиненных аккаунтов">🔄 Снять диалоги со всех</button>
+          </div>
+      </div><!-- /ta-live -->
+    </section>
+
+    <!-- АККАУНТЫ — ОДНОЙ ПЛАШКОЙ: зачем они + ключи API (если ещё не вписаны) + сетка
+         карточек с добавлением и входом. Раньше это было три секции подряд, из-за чего
+         лист выглядел «кашей из маленьких окон». -->
+    <section class="dash-card ta-accounts">
+      <h2>👤 Аккаунты Telegram — кому уже писал</h2>
+      <p class="dash-hint">
+        Страница снимает <b>список диалогов</b> каждого аккаунта (одним <code>getDialogs</code>,
+        истории не читаем — это и есть защита от FloodWait) и ставит лиду отметку «писал». Дальше
+        фильтр «не писал» в Истории и <code>/list рассылка</code> в боте берут ТОЛЬКО тех, кому
+        не светили. Два аккаунта — это два шанса светить один ник: увидев второе сообщение от
+        «незнакомца», человек просто закрывает диалог. Отметки живут в базе профилей: выключишь
+        мост — старые решения останутся валидны.
+      </p>
+
+      <!-- КЛЮЧИ API: показываем, только если мост поднялся, но api_id/api_hash пустые.
+           Мост сам впишет их в tgbridge\config.json и применит сразу (роут /setconfig). -->
+      <div class="ta-keys" id="taKeys" hidden>
+        <h3>🔑 Ключи Telegram API — одно заполнение на всё</h3>
+        <p class="dash-hint">
+          Мосту нужны <code>api_id</code> и <code>api_hash</code>. Их выдаёт сам Telegram: открой
+          <a href="https://my.telegram.org" target="_blank" rel="noreferrer">my.telegram.org</a>, войди по номеру
+          (код придёт <b>в Telegram</b>, не в SMS) → <b>API development tools</b> → скопируй два значения.
+          Они <b>одни на все аккаунты</b> — на каждый номер заново получать не надо.
+          Вставишь сюда — мост сохранит их в <code>tgbridge\config.json</code> и применит сразу, окно
+          <code>start-bridge.bat</code> закрывать не нужно.
+        </p>
+        <div class="set-duo">
+          <label class="set-row"><span>api_id (число)</span>
+            <input type="text" id="taApiId" spellcheck="false" autocomplete="off" inputmode="numeric" placeholder="28437191" /></label>
+          <label class="set-row"><span>api_hash (32 символа)</span>
+            <input type="text" id="taApiHash" spellcheck="false" autocomplete="off" placeholder="0a1b2c3d4e5f60718293a4b5c6d7e8f9" /></label>
+        </div>
+        <div class="run-row">
+          <button id="btnTaKeys" class="btn-small" title="Мост сам запишет config.json и применит ключи без перезапуска">💾 Сохранить ключи</button>
+          <span class="dash-muted small" id="taKeysNote">Файл, куда пишет мост, виден в <code>http://localhost:8800/config</code>.</span>
+        </div>
+      </div>
+
+      <!-- КАРТОЧКИ АККАУНТОВ: 3 в ряд + последняя ячейка «＋ добавить» (всю сетку рисует taRender) -->
+      <div class="ta-grid" id="taGrid"></div>
+      <div class="ta-empty" id="taEmpty" hidden>Аккаунтов пока нет — добавь первый в последней ячейке.</div>
+    </section>
+
+
+    <!-- ТУТОРИАЛ ЛИСТА ④ — В САМЫЙ НИЗ: сначала подключение и аккаунты, памятка не
+         должна занимать экран над рабочей плашкой. Квадраты во всю ширину карточки, все
+         шаги раскрыты: от номерка вниз линия, на её конце карточка с текстом. Порядок
+         действий ровно тот, по которому мост поднимается с нуля. -->
+    <section class="dash-card sq-help sq-help--p4">
+      <h2 class="sq-help-title">🧩 Как поднять мост — по плиткам</h2>
+      <div class="sq-guide">
+        <div class="sq-step" style="--rot:-2deg;--ln:58px">
+          <div class="sq-node"><span class="sq-num">1</span><span class="sq-lb">Мост</span></div>
+          <i class="sq-line"></i>
+          <div class="sq-card"><b>Двойной клик по <code>tgbridge\start-bridge.bat</code></b> — окно держи открытым всё время. Закрыл окно = «Мост: Failed to fetch». После обновления файлов мост нужно перезапустить один раз.</div>
+        </div>
+        <div class="sq-step" style="--rot:2.5deg;--ln:26px">
+          <div class="sq-node"><span class="sq-num">2</span><span class="sq-lb">Ключи</span></div>
+          <i class="sq-line"></i>
+          <div class="sq-card"><b>my.telegram.org</b> → войди по номеру (код придёт в Telegram, не в SMS) → <b>API development tools</b> → <code>api_id</code> (число) и <code>api_hash</code> (32 знака). Вставь в красную плашку в блоке аккаунтов — мост сам запишет <code>config.json</code>. Ключи <b>ОДНИ на все аккаунты</b>.
+            <details class="sq-more"><summary>если не создаётся / непонятная ошибка</summary>
+              <ul>
+                <li>Возможно, Telegram уже выдал тебе <code>api_id</code> — на том же блоке ничего создавать не надо, копируй.</li>
+                <li>Форма висит на <code>Saving…</code> и выплёвывает <code>[object Object]</code> — это их JS показывает объект ошибки вместо текста. Точный код видно в F12 → Network → ответ на запрос.</li>
+                <li><code>401</code> на <code>apps/create</code> — дело НЕ в полях формы, а в сессии: Logout, вход заново по номеру и жми Create сразу (сессия протухает очень быстро).</li>
+                <li>VPN: не меняй узел посреди сессии; на этом шаге лучше совсем без него или с одним и тем же.</li>
+                <li>Нужен непустой <code>URL</code> (например <code>https://localhost</code>) и уникальный <code>Short name</code> без дефисов.</li>
+                <li>Отказы по делу: <code>APP_SHORT_NAME_OCCUPIED</code>, <code>CHANNELS_TOO_MUCH</code>, <code>BOT_ACCOUNT</code>.</li>
+              </ul>
+            </details>
+          </div>
+        </div>
+        <div class="sq-step" style="--rot:-2.5deg;--ln:84px">
+          <div class="sq-node"><span class="sq-num">3</span><span class="sq-lb">Аккаунт</span></div>
+          <i class="sq-line"></i>
+          <div class="sq-card"><b>＋ Добавить и войти</b>: номер с кодом страны (+7…). Канал кода выбирает Telegram: если номер уже залогинен в приложении — код придёт ТУДА (чаще всего в телефон), если приложения нет — по SMS. Мост напишет, куда смотреть.</div>
+        </div>
+        <div class="sq-step" style="--rot:1.5deg;--ln:40px">
+          <div class="sq-node"><span class="sq-num">4</span><span class="sq-lb">Код</span></div>
+          <i class="sq-line"></i>
+          <div class="sq-card">Поле <b>«Код из Telegram»</b> появится прямо в карточке аккаунта (заголовок «Вход · …») — вводи туда и жми <b>«→ Код принят»</b> или Enter. Перезагрузил страницу? поле вернётся само: мост помнит шаг. Код живёт ~15 мин, не успел — «🔑 войти» ещё раз. Куда именно Telegram положил код — в приложение этого номера (обычно телефон) или в SMS — пишет та же карточка входа. Если на аккаунте включён 2FA, мост спросит пароль отдельным шагом.</div>
+        </div>
+        <div class="sq-step" style="--rot:-1.5deg;--ln:70px">
+          <div class="sq-node"><span class="sq-num">5</span><span class="sq-lb">Диалоги</span></div>
+          <i class="sq-line"></i>
+          <div class="sq-card"><b>🔄 Снять диалоги со всех</b>: мост читает списки чатов, матзует их с базой <code>igx_profile:*</code> и ставит метку «писал». Лидам он не отправляет ничего.</div>
+        </div>
+        <div class="sq-step" style="--rot:2deg;--ln:32px">
+          <div class="sq-node"><span class="sq-num">6</span><span class="sq-lb">Не свети</span></div>
+          <i class="sq-line"></i>
+          <div class="sq-card">Разбор и рассылка обходят тех, <b>кому ты уже писал</b> с этого аккаунта. Размечал зря — <b>🧹 Забыть все отметки «писал»</b> снимает их со всей базы, сами снимки диалогов остаются.</div>
+        </div>
+      </div>
+      <p class="dash-muted small">Порядок — слева направо. Плитки ничего не нажимают.</p>
+    </section>
+
+    <footer class="dash-muted small">
+      Секреты (<code>api_id</code>/<code>api_hash</code> и session-строки) живут <b>только на диске</b> в папке <code>tgbridge/</code> и в <code>chrome.storage</code> не попадают. Мост слушает 127.0.0.1 и лидам ничего не отправляет — служебное сообщение пишет только <code>@SpamBot</code>.
+    </footer>
+  </main>
+
+  <!-- ============ ЛИСТ ⑤ · АВТОПИЛОТ ============ -->
+  <!-- Это НЕ новый парсер: ∞ уже сам меняет доноров и сам уходит отдыхать, «Ревизия TG»
+       и автоанализ уже есть кнопками, реактор уже считает риск. Автопилот — надзиратель:
+       он решает «кого кормить, когда встать и насколько притормозить». Отсюда правило
+       всей страницы: КАЖДОЕ его решение подписано причиной, а рычаг скорости есть только
+       на торможение (разгон вверх = путь к суточному бану, его в природе нет).
+       Порядок на листе = крест вокруг кнопки: СЛЕВА лента того, что он уже решил,
+       СПРАВА то, что он делает прямо сейчас, СНИЗУ склад (чем он сейчас располагает),
+       и уже под складом — две ручки настроек в ряд. -->
+  <main class="dash-page" data-page="5">
+
+    <!-- ГЛАВНАЯ ПЛАШКА ЛИСТА ⑤ — ОДНА СЕТКА-КРЕСТ ВОКРУГ КНОПКИ (расстановка
+         числами в grid-column/grid-row, CSS «auto-stage .stage-grid»): 1-й ряд —
+         НАСТРОЙКИ | ядро с кнопкой | НАСТРОЙКИ, 2-й ряд — «ЧТО ДЕЛАЕТ» | ЛЕНТА
+         (стык в стык, в той же плашке), 3-й ряд — СКЛАД на всю ширину. Длинное
+         описание уехало ПОД КНОПКУ и сузилось до колонки ядра: пока оно стояло в
+         середине, двум окнам нижнего ряда не хватало места. Ничего не «висит по середине»: вопрос «что
+         сделал», «что делает» и «чем располагает» — три разных места на одном экране.
+         ТУМБЛЕР ЛИСТА ⑤ ВЕРНУЛСЯ (сборка 40, просьба юзера): тот же приём, что на
+         ③/④/⑥ — пилюля на верхней кромке плашки, по дефолту ВЫКЛ, и с ним лист
+         блокируется СЕПИЕЙ, а орб «▶ Запустить» не кликается, пока пилюля не
+         поднята. Орб — НЕ второй переключатель, а ЕДИНСТВЕННЫЙ орган запуска:
+         состояние автопилота по-прежнему живёт в #autoOn (его трогает bindCheck
+         и listener фиксации пола темпа), пилюля пишет СВОЙ ключ igx_auto_master_on
+         и ничего не фармит сама. -->
+    <input type="checkbox" id="autoOn" class="auto-on-input" hidden />
+    <section class="dash-card card-stage auto-stage">
+      <label class="ph-master-switch auto-master">
+        <input type="checkbox" id="autoMaster" />
+        <span class="ph-master-track" aria-hidden="true"><i></i></span>
+        <span class="ph-master-txt"><b>🤖 Включить лист автопилота</b><small>Выключено — весь лист приглушён СЕПИЕЙ, настройки и круг «▶ Запустить» не нажимаются, надзиратель не стартует (ключ igx_auto_master_on). Снять автопилот, не останавливая ферму — «⏸ отдать управление» внутри листа; снять и ферму — круг-орб, он же ⏹. Пилюля ничего не фармит сама: она только разрешает или запрещает тебе дёргать органы на этом листе.</small></span>
+      </label>
+      <div class="stage-grid">
+
+        <aside class="stage-side">
+          <h3>🎛 Зачем он работает</h3>
+          <label class="set-row" title="igx_auto_goal. Сколько «живых и не писаных» (плашка склада) считаем достаточным. 0 = цель выключена: автопилот вообще не уходит спать, только добирает окна. Не ставь цель выше, чем реально нужно на рассылку: сон с готовым складом — это простаивающая ферма."><span>Цель склада (лидов)</span>
+            <input type="number" id="autoGoal" min="0" max="1000000" step="10" placeholder="0" /></label>
+          <label class="set-row" title="igx_auto_rate_min. Прирост склада в час, ниже которого считаем «мало» и идём добирать окна. 0 = скорость не мерить (решать только по цели и по числу окон). Порог имеет смысл только после того, как автопилот соберёт ≥ 15 мин точек — до этого прирост честным не бывает."><span>«Мало», прирост /ч</span>
+            <input type="number" id="autoRateMin" min="0" max="5000" step="1" placeholder="0" /></label>
+          <label class="set-row" title="igx_auto_sleep_min. Сколько отдыхать после того, как цель по складу выполнена. Ферма встаёт СТОПОМ (окна закрываются по «стопу»), а не молча."><span>Сон после цели, мин</span>
+            <input type="number" id="autoSleepMin" min="1" max="1440" step="5" /></label>
+          <p class="dash-muted small">Темп (пауза между проверками) живёт на листе ① и остаётся твоим: автопилот умеет только <b>тормозить</b> по шкале риска (×2 / ×4 / ×8) и возвращать снятое, когда шкала остыла 15 минут. Двинул ползунок руками — метка «темп выбрал автопилот» снимается, и твоё число становится новым потолком. Быстрее этого потолка он не разгонится никогда.</p>
+        </aside>
+
+        <div class="stage-core">
+          <h2>🤖 Автопилот</h2>
+          <!-- Кнопка автопилота — КРУГЛЫЙ орб того же дизайна, что «▶ Запустить» (лист ①) и
+               кнопки листа ②: контейнер даёт ауру, кольцо и частицы, кнопка — круг, блик и пульс. -->
+          <div class="phone-ctl ph-ctl-lg auto-ctl">
+            <div class="phone-orbit" aria-hidden="true"><i style="--a:0deg"></i><i style="--a:45deg"></i><i style="--a:90deg"></i><i style="--a:135deg"></i><i style="--a:180deg"></i><i style="--a:225deg"></i><i style="--a:270deg"></i><i style="--a:315deg"></i></div>
+            <button id="autoBigToggle" class="btn-phone auto-cta" title="Единственный орган автопилота: клик запускает надзирателя над фермой (и фиксирует текущий темп как ПОТОЛОК скорости). Повторный клик — выключить ПО-НАСТОЯЩЕМУ: шлёт «стоп» всем ∞-окнам и возвращает темп тебе. Хочешь оставить окна работать — жми «⏸ отдать управление». Быстрее темпа, выбранного руками на листе ①, автопилот не поедет.">
+              <span class="auto-cta-ico" aria-hidden="true">🤖</span>
+              <span class="auto-cta-label" id="autoBigToggleLabel">Включить автопилот</span>
+              <span class="auto-cta-hint" id="autoBigToggleHint">клик включает надзирателя</span>
+            </button>
+          </div>
+          <div class="run-controls">
+            <button id="autoHandOver" class="btn-small" title="Снять автопилот, НЕ останавливая ферму: окна останутся открытыми, добирай их кнопкой «+1» на листе ①. Нужна, когда хочешь посмотреть и порулить руками, не гася прогон. Темп тоже остаётся как есть: сам себя отменять разгоном автопилот не имеет права.">⏸ Отдать управление вручную</button>
+          </div>
+          <!-- Описание УЕХАЛО ПОД КНОПКУ: стоя посередине ядра оно съедало ширину, и
+               двум окнам второго ряда не хватало места. «в ленте ниже» → «справа внизу»,
+               потому что лента теперь живёт во втором ряду справа. -->
+          <p class="dash-hint">
+            Надзиратель над тем, что уже умеет ферма: сам ищет доноров, пока склада не хватит,
+            сам тормозит, когда Instagram начинает огрызаться, сам ждёт разбана и проверяет его
+            пробником. <b>Каждое его решение подписано причиной</b> в ленте справа внизу, а рычага
+            разгона в природе нет — только торможение. <b>⏹ выключить = по-настоящему</b>:
+            вместе с флагом автопилот шлёт «стоп» всем ∞-окнам и возвращает темп тебе —
+            иначе «выключил» означало бы «картинка погасла, а окна продолжают фармить».
+            Нужны окна без него — «⏸ отдать управление» (окна и темп остаются как есть).
+          </p>
+        </div><!-- /stage-core: заголовок, орб, «⏸ отдать управление» и ПОД НИМИ описание. -->
+
+        <!-- СКЛАД — СНИЗУ, второй строкой той же плашки, на всю её ширину. Раньше он
+             сидел ПОД КНОПКОЙ внутри ядра и выглядел как «что-то по середине»: вопрос
+             «что уже можно отдать рассылке» относится ко всему листу, а не к кнопке.
+             Предикаты — те же, что читает бот в /list (qualify.js), поэтому цифры
+             здесь и у бота не могут разойтись. -->
+        <div class="auto-stock">
+            <h3>📦 Склад: кого можно в рассылку прямо сейчас</h3>
+            <div class="auto-kpi-grid">
+              <div class="auto-kpi auto-kpi--main" id="autoStockClean" title="Доказанно живой Telegram (проверка прошла) И ни с одного твоего аккаунта ему не писали. Именно это автопилот считает складом и на это смотрит цель."><span class="auto-kpi-n">0</span><span class="auto-kpi-lb">живые TG, которым ещё не писали</span><span class="auto-kpi-sub">цель не задана (0 = не мерить)</span></div>
+              <div class="auto-kpi" id="autoStockWrote" title="Живой TG, которому уже писали с какого-то из аккаунтов (лист ④). В рассылку их брать незачем — светим лида второй раз."><span class="auto-kpi-n">0</span><span class="auto-kpi-lb">им уже писали</span><span class="auto-kpi-sub">не трогать</span></div>
+              <div class="auto-kpi" id="autoStockUnsure" title="Живой TG, по которому диалоги НЕ смотрелись: отметки «писали/не писали» просто нет. Это НЕ «не писали» — это отсутствие данных. При древнем снимке листа ④ склад ниже, чем он есть на самом деле."><span class="auto-kpi-n">0</span><span class="auto-kpi-lb">не проверялось по диалогам</span><span class="auto-kpi-sub">это пробел, а не «не писали»</span></div>
+              <div class="auto-kpi" id="autoStockTg" title="Вообще любой найденный Telegram — до проверки живости и независимо от отметок. Показывает, сколько сырья у тебя есть и куда оно девается на проверку."><span class="auto-kpi-n">0</span><span class="auto-kpi-lb">с TG вообще</span><span class="auto-kpi-sub">любой вердикт</span></div>
+            </div>
+            <div class="auto-rate" id="autoRate">прирост ещё не измерен (нужно ≥ 15 мин двух точек склада)</div>
+            <div class="dash-muted small" id="autoStockUnsureShare"></div>
+        </div>
+
+        <aside class="stage-side">
+          <h3>🎛 Что ему разрешено</h3>
+          <label class="set-row" title="igx_auto_windows. Сколько ∞-окон держим. Работает ровно как «+1»: больше окон — больше проверок в час, но ЭФФЕКТИВНАЯ пауза фермы = 1/Σ(1/пауза), т.е. N окон по 4 с дают 4/N. Шкала риска слева считает и окна, и суммарный темп — автопилот при росте риска затормозит, но не остановит тебя молча."><span>Окон держать</span>
+            <input type="number" id="autoWindows" min="1" max="8" step="1" /></label>
+          <label class="set-row" title="igx_auto_ban_min. Минимальная выдержка перед первым пробником после бана. Разбан за десять секунд — это не разбан: Instagram догоняет ответ. Это же окно (в часах) переживает «приговор бана» в шкале риска."><span>Ждать до пробника, мин</span>
+            <input type="number" id="autoBanMin" min="1" max="1440" step="5" /></label>
+          <label class="set-row" title="igx_auto_probe_min. Как часто в фазе «жду разбана» открывать ОДНО окно-пробник. Пробник не чеканит профили — он просто грузит страницу, а content.js своим пассивным наблюдателем сам скажет «живой контент вернулся». Частые пробники = ты сам стучишься к банеру."><span>Период пробника, мин</span>
+            <input type="number" id="autoProbeMin" min="1" max="240" step="1" /></label>
+          <label class="set-row" title="igx_auto_risk_pct. «СТРАХ РИСКА»: пока шкала слева ниже этого %, автопилот НЕ тормозит и НЕ останавливается вообще. При 110 он дёргается только когда шкала покажет ≥ 110 (тир 1 = ×2 пауза), при 135 = ×4, при 155 = ×8 и «остываю полчаса». Дефолт 35 = ровно прежние [35, 60, 80]. ПОСТАВИШЬ 0 — шкалу не смотрит вообще: тормозит ТОЛЬКО по бану. Реакция: темп ×2/×4/×8 + НЕ добирает окна (держит столько, сколько уже живое); бан при любом значении обрабатывается одинаково жёстко."><span>Страх риска, % (0 = не смотреть)</span>
+            <input type="number" id="autoRiskPct" min="0" max="200" step="5" placeholder="35" /></label>
+          <!-- РАЗРЕШЕНИЯ «ВСЁ ПОДРЯД ИЗ ПАРСЕРА» — пять галок, по дефолту все
+               ВКЛЮЧЕНЫ (просил именно «всё подряд»). Каждый ключ отдельный, чтобы
+               снять одно и оставить остальные. Из них пока РЕАЛЬНО работает только
+               «комменты»: при ВКЛ тумблере режима (igx_cmt_master_on) и поднятом
+               автопилоте он раз в 15 мин может поднять ОДНО окно комментов через
+               тот же startCmtWindow(), что и спутник на листе ① (общий busy-
+               диспатч на 3 ч, тот же пул доноров). «ревизия TG» и «автоанализ»
+               теперь РЕАЛЬНО работают: по этим галкам автопилот сам ведёт сервис-
+               проходку «ревизия TG → автоанализ» (не чаще раза в час, шаг 4.5 в
+               autoTick; идёт и во время сна goal_met). Остальные 2 — чистка TG и
+               телефон — пока DECLARED-BUT-UNUSED: движок их не дёргает, но
+               разрешение уже хранится, чтобы при подключении не уговаривать заново. -->
+          <div class="auto-perms">
+            <label class="set-chk set-chk--tight" title="igx_auto_perm_cmt. РАЗРЕШАЕТЬ автопилоту поднимать окно комментов как второй канал добычи (через startCmtWindow, тот же busy/dispatched-контур, что у спутника листа ①). Гаснет — автопилот к комментам не прикоснётся, даже если режим включён тумблером на листе ⑥."><input type="checkbox" id="autoPermCmt" /> 💬 комменты</label>
+            <label class="set-chk set-chk--tight" title="igx_auto_perm_paa. РАЗРЕШАЕТЬ автопилоту самому поднимать автоанализ профилей — финальной стадией сервис-проходки «ревизия TG → автоанализ» (шаг 4.5). Гаснет — разбор автопилоту недоступен (руком с кнопки листа ② это не отменяет)."><input type="checkbox" id="autoPermPaa" /> ◍ автоанализ</label>
+            <label class="set-chk set-chk--tight" title="igx_auto_perm_rev. РАЗРЕШАЕТЬ автопилоту самому звать «Ревизию TG» (массовую проверку живости) — первой стадией сервис-проходки «ревизия TG → автоанализ» (шаг 4.5). Гаснет — автопилот не имеет права её звать."><input type="checkbox" id="autoPermRev" /> ✈ ревизия TG</label>
+            <label class="set-chk set-chk--tight" title="igx_auto_perm_rcx. РАЗРЕШАЕТЬ (ПОКА НЕ ИСПОЛЬЗУЕТСЯ движком) автопилоту звать чистку TG по номеру. Гаснет — чистка ему недоступна."><input type="checkbox" id="autoPermRcx" /> 🧹 чистка TG</label>
+            <label class="set-chk set-chk--tight" title="igx_auto_perm_phone. РАЗРЕШАЕТЬ (ПОКА НЕ ИСПОЛЬЗУЕТСЯ движком) автопилоту дернуть мост «телефон → ПК» (приёмник журналов). Гаснет — телефон для него чужой."><input type="checkbox" id="autoPermPhone" /> 📲 телефон</label>
+          </div>
+          <p class="dash-muted small">Каждая ручка подписывает свой ключ storage (<code>igx_auto_*</code>) — чтобы «сбросить настройки» и «почему он так решил» отвечались одним именем, а не гаданием.</p>
+        </aside>
+        <!-- ЛЕНТА РЕШЕНИЙ — СЛЕВА от ядра, на одном с ним уровне. Каждое действие
+             с причиной и временем: без неё автопилот — чёрный ящик, а с ней его
+             можно поправить за руки. Рамку «dash-card» снял — внутри общей плашки
+             это была бы «плашка в плашке», как с кнопкой на листе ④. -->
+        <section class="auto-log-card">
+          <div class="auto-hd"><h2>🧾 Лента решений</h2><button id="autoLogMore" class="btn-small" hidden>⬇ развернуть</button></div>
+          <ul class="auto-log" id="autoLog"></ul>
+        </section>
+
+        <!-- ФАЗА — СПРАВА от ядра, на одном с ним уровне, напротив ленты: слева
+             читают то, что уже случилось, справа — что происходит прямо сейчас.
+             Причина обязательна: «компьютер сам что-то сделал» без объяснения —
+             это не автопилот, а сюрприз. -->
+        <section class="auto-phase-card">
+          <div class="auto-hd"><h3>🛰 Что он сейчас делает</h3><span class="auto-hint" title="Автопилот живёт, пока открыта эта вкладка дашборда (ровно как разборка окон, «Ревизия TG» и автоанализ).">живёт, пока открыта эта вкладка</span></div>
+          <div class="auto-phase" id="autoPhase" data-phase="off">⚪ выключен</div>
+          <div class="auto-phase-why" id="autoPhaseWhy">тумблер выключен</div>
+          <div class="dash-muted small" id="autoPhaseAge">фазы ещё не было</div>
+          <div class="auto-run-line" id="autoWindowsLive">окон в работе 0 из 1</div>
+          <div class="auto-throttle" id="autoThrottleNow"><b>темп не трогал</b><small>быстрее пола автопилот не поедет</small></div>
+          <details class="sq-more auto-phases">
+            <summary>что за фазы и когда он в них попадает</summary>
+            <ul>
+              <li><b>▶ добыча</b> — окон меньше, чем ты разрешил, или прирост склада ниже порога: поднимает окно через ту же кнопку «+1» (тот же выбор донора, те же фильтры).</li>
+              <li><b>⏸ уступил ручному прогонщику</b> — идёт «Ревизия TG», чистка по номеру или автоанализ. У них уже есть взаимное исключение руками; автопилот его уважает и окна/темп не дёргает.</li>
+              <li><b>🧊 остываю</b> — шкала риска ≥ 80: ферма останавливается СТОПОМ (не молча) на полчаса, темп при этом уже задвоен/учетверён/увосемрён.</li>
+              <li><b>✅ склад готов — сон</b> — живых и не писаных больше цели: стоп + отдых, потом снова добыча.</li>
+              <li><b>🚫 бан: жду разбана</b> — стоп один раз, дальше раз в период открывает ОДНО окно-пробник и смотрит, отдаст ли страница живой контент. Входит после бана на удвоенной паузе.</li>
+            </ul>
+          </details>
+        </section>
+      </div><!-- /stage-grid: 1-й ряд — настройки | ядро с кнопкой | настройки,
+                2-й — «что делает» | лента (стык в стык), 3-й — склад во всю ширину. -->
+    </section><!-- /auto-stage -->
+
+    <footer class="dash-muted small">
+      Второй срез (когда автопилот сам зовёт «Ревизию TG» и автоанализ) сюда ещё не входит: диспетчеры обоих живут на ЭТОЙ ЖЕ странице, и автономному циклу нужно уметь отличать «разбор завершился» от «разбор уронил вкладку» — иначе он будет молча ждать разбор, которого уже нет и который никогда не наступит. Врать про это перестали хотя бы сироты автоанализа: при перезагрузке дашборда незавершённые джобы дописываются как «ошибка».
+    </footer>
+  </main>
+
+  <!-- ============ ЛИСТ ⑥ · КОММЕНТЫ (второй канал добычи) ============ -->
+  <!-- СМЫСЛ ЛИСТА. АФК умеет ровно одно действие: открыть /followers/ или /following/
+       и скрейпить список. Это самый лимитируемый запрос Instagram, и именно его банят.
+       Комменты под рилсом — ДРУГОЙ класс действий, поэтому второй канал может ехать,
+       когда списки лежат. Отсюда два правила листа: (1) режим НЕ является подвидом АФК
+       (у него свой ключ, свои счётчики, свой сенсор на шкале риска), (2) лид отсюда
+       холоднее обычного — это зритель чужого рилса, а не сам эксперт, поэтому он едет
+       в отдельную полку (viaComments) и в рассылку без первой проверки TG не берётся.
+       Плашка ОДНА, укладка — как на листе ①: настройки слева, круглая кнопка ПО СЕРЕДИНЕ,
+       настройки справа, лента «что прочекали» отдельной строкой под всеми тремя.
+       Тумблер висит на кромке (тот же приём, что лист ③), выключен — лист глушится
+       по детям, тумблер остаётся живым. -->
+  <main class="dash-page" data-page="6">
+    <section class="dash-card cmt-conn" id="cmtConn">
+      <label class="ph-master-switch cmt-master">
+<input type="checkbox" id="cmtMaster" />
+        <span class="ph-master-track" aria-hidden="true"><i></i></span>
+        <span class="ph-master-txt"><b>💬 Включить режим комментов</b><small>Второй канал добычи вместо списков подписчиков: читаем комменты под свежими рилсами доноров. Выключено — лист приглушён, движок режим не поднимает (ключ igx_cmt_master_on).</small></span>
+      </label>
+
+      <!-- УКЛАДКА — КАК НА ЛИСТЕ ①: общий .stage-grid, настройки слева, ядро с круглой
+           кнопкой ПОСЕРЕДИНЕ, настройки справа, а лента «что прочекали» — отдельной
+           строкой под всеми тремя (grid-column: 1/-1). -->
+      <div class="stage-grid">
+      <aside class="stage-side cmt-side" id="cmtSideVideo">
+        <h3>🎞 Какие видео брать</h3>
+        <label class="set-row" title="igx_cmt_max_age_days. Сколько дней может быть ролику. Свежие дают живых людей: комментатор трёхмесячной давности уже мог уйти из ниши. 0 = не фильтровать по возрасту (не стоит: старый рилс почти всегда мёртвый груз)."><span>Свежесть, не старше (дней)</span>
+          <input type="number" id="cmtMaxAge" min="0" max="3650" step="5" /></label>
+        <label class="set-row" title="igx_cmt_min_comments. Минимум комментариев под видео, чтобы оно вообще рассматривать. Ниже — там некого брать. 0 = не фильтровать: читаем любой рилс, даже с одним комментарием."><span>Минимум комментариев (0 = любой)</span>
+          <input type="number" id="cmtMinComments" min="0" max="100000" step="1" /></label>
+        <label class="set-row" title="igx_cmt_per_1000. Комментариев на 1000 просмотров — фильтр по ВИДЕО (не по человеку): отсекает ролики, которые смотрели тысячи, но никто не пишет (мёртвая/ботовая аудитория). 0 = ВЫКЛЮЧИТЬ фильтр: тогда берётся любое видео, где есть хотя бы комментарии. По умолчанию 0 — плотность чаще режет полезные нишевые рилсы, чем спасает от мусора."><span>Комментариев на 1000 просмотров (0 = выкл)</span>
+          <input type="number" id="cmtPer1000" min="0" max="1000" step="1" /></label>
+        <label class="set-row" title="igx_donor_min_followers. Минимум подписчиков У САМОГО ДОНОРА: под немодным донором с парой сабов некому писать — отсюда и «просмотров нет». Пишет ТОТ ЖЕ общий ключ, что и «донор · мин. сабов» на листе ①, — копии не разъезжаются. Пусто = наследует порог лидов листа ①."><span>Донор · мин. сабов (брать популярных)</span>
+          <input type="number" id="cmtDonorMin" min="0" max="10000000" step="100" placeholder="как на листе ①" /></label>
+        <label class="set-chk set-chk--tight" title="igx_cmt_only_expert. Брать только те видео, у которых в базе видео стоит формат «экспертный» — его пишет автоанализ, руками не ставится. Снято — берём любое видео донора, подходящее по трём порогам выше."><input type="checkbox" id="cmtOnlyExpert" /><span>Только «экспертные» по разбору</span></label>
+        <p class="dash-muted small">Порог сабов донора («донор · мин. сабов» выше) — тот же <code>igx_donor_min_followers</code>, что на листах ① и ③, поэтому мода на одного донора не разъедется по вкладкам. Слово донора (<code>igx_afk_must_word</code>) и пол остаются общими и сюда не вынесены, чтобы не плодить копии.</p>
+      </aside>
+
+      <div class="stage-core cmt-core">
+        <h2>💬 Комменты</h2>
+        <p class="dash-hint">Ферма берёт комментаторов под рилсами донора. Скорость: «донор · мин. сабов» + пороги видео (0 = выкл). Проверка сабов комментатора — общий порог лида ① при «Заход в профиль».</p>
+        <div class="phone-ctl ph-ctl-lg cmt-ctl" id="cmtCtl">
+          <div class="phone-orbit" aria-hidden="true"><i style="--a:0deg"></i><i style="--a:45deg"></i><i style="--a:90deg"></i><i style="--a:135deg"></i><i style="--a:180deg"></i><i style="--a:225deg"></i><i style="--a:270deg"></i><i style="--a:315deg"></i></div>
+          <button id="cmtBigToggle" class="btn-phone cmt-cta" title="Окна второго канала. Клик = запустить окно комментов на свежем доноре из базы; повторный клик = остановить самое старое окно. Тумблер на кромке плашки при этом только РАЗРЕШАЕТ режим: кнопка и тумблер — два разных действия.">
+            <span class="cmt-cta-ico" aria-hidden="true">💬</span>
+            <span class="cmt-cta-label" id="cmtBigLabel">Комментов: окон 0</span>
+            <span class="cmt-cta-hint" id="cmtBigHint">клик = запустить окно</span>
+          </button>
+        </div>
+        <div class="run-controls">
+          <button id="btnCmtExtra" class="btn-extra" title="Ещё одно независимое окно комментов: отдельный донор, своя сетка рилсов. Чем больше окон — тем быстрее ферма читает комменты, тем сильнее крутится аура (на этом листе и вокруг большой кнопки на листе ①).">＋ ещё окно</button>
+          <button id="btnCmtStopOne" class="btn-stop" disabled title="Останавливает только самое старое окно комментов (вкладка дочитывает текущий риелс и закроется сама). Большая кнопка — тоже стоп самого старого; тумблер на кромке — выключить весь режим.">⏹ Стоп 1 окно</button>
+        </div>
+        <div class="cmt-mini" id="cmtMiniStats" title="Живой итог прямо под кнопкой: сколько окон крутится, сколько видео прочитано и сколько людей найдено в комментариях.">
+          <span class="cmt-mini-win">окон: —</span>
+          <span class="cmt-mini-vid">видео: —</span>
+          <span class="cmt-mini-lead">собрано: —</span>
+        </div>
+        <div class="run-panel cmt-panel" id="cmtPanel" hidden>
+          <div class="rp-head">
+            <span class="rp-live" id="cmtPanelPill">● LIVE</span>
+            <span class="rp-title">Комменты · сводка с начала прогона</span>
+            <span class="rp-windows" id="cmtPanelWin">0 окон</span>
+          </div>
+          <div class="rp-grid">
+            <div class="rp-cell"><b id="cmtStatGot">0</b><span>собрано</span></div>
+            <div class="rp-cell"><b id="cmtStatVideo">0</b><span>видео</span></div>
+            <div class="rp-cell hl"><b id="cmtStatQueue">0</b><span>в очереди</span></div>
+            <div class="rp-cell grn"><b id="cmtStatTg">0</b><span>лидов с ТГ</span></div>
+            <div class="rp-cell hl"><b id="cmtStatRate">0</b><span>собрано/ч</span></div>
+            <div class="rp-cell"><b id="cmtStatRead">0</b><span>прочтено</span></div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="stage-side cmt-side" id="cmtSideRun">
+        <h3>📖 Сколько читать за проход</h3>
+        <label class="set-row" title="igx_cmt_read_max. До скольких комментариев доскроллить под одним видео. Дальше Instagram отдаёт всё медленнее, а качество лидов падает: первые десятки — самые говорящие."><span>Комментариев читать, не больше</span>
+          <input type="number" id="cmtReadMax" min="5" max="500" step="5" /></label>
+        <label class="set-row" title="igx_cmt_posts_per_run. Сколько видео одного донора открыть за один проход. Это НЕ «весь профиль»: сетку донора режим переживает целиком за несколько проходов, а мы уходим раньше — иначе одно окно висит на профиле час и светит им."><span>Видео за проход</span>
+          <input type="number" id="cmtPostsPerRun" min="1" max="50" step="1" /></label>
+        <label class="set-row" title="igx_cmt_profile_ceiling. Потолок ЗАХОДОВ В ПРОФИЛЬ комментатора в час. Заход в профиль — это profile view, тот же суточный лимит, что у списков; без потолка второй канал просто быстрее сожрёт его. 0 = заходить запрещено (тогда режим только читает комменты)."><span>Профилей в час (потолок)</span>
+          <input type="number" id="cmtProfileCeiling" min="0" max="1000" step="5" /></label>
+        <label class="set-chk set-chk--tight" title="igx_cmt_open_profiles. Заходить в профиль комментатора, если он уже в базе и ещё не выжат: там свежий bio, сабы и TG-контакт. Снято — лид из комментария записывается голой ник-строкой."><input type="checkbox" id="cmtOpenProfiles" /><span>Заходить в профиль комментатора</span></label>
+        <label class="set-row" title="igx_cmt_must_word. Слово или вопрос в ТЕКСТЕ комментария — через запятую, достаточно любого. Нужен, чтобы брать спрашивающих, а не молча прошедших мимо. Пусто = брать всех подряд."><span>Слово в тексте комментария</span>
+          <input type="text" id="cmtMustWord" placeholder="цена, сколько, как купить…" /></label>
+        <label class="set-row" title="igx_cmt_rotate. Комменты бесконечны: пустая/старая сетка одного донора не убивает окно, а перескакивает на следующего. Это — что делать, когда ВСЕ доноры пула пройдены и свежих рилсов ни у кого нет. «Один круг» — остановить окно (его закроет вотчдог). «Вечный круг» — выдержать паузу ниже, очистить список пройденных и пойти по новому кругу; окно не гаснет, пока включён тумблер."><span>Когда доноры кончились</span>
+          <select id="cmtRotate">
+            <option value="once">Один круг — остановить окно</option>
+            <option value="loop">Вечный круг — повторять</option>
+          </select></label>
+        <label class="set-row" title="igx_cmt_loop_pause. Только для «Вечного круга»: сколько минут отдыхать между кругами, чтобы не долбить пустых доноров без перерыва (ИГ читает это как бота). 30 мин — разумный минимум."><span>Пауза между кругами, мин</span>
+          <input type="number" id="cmtLoopPause" min="1" max="1440" step="5" /></label>
+      </aside>
+
+      <div class="cmt-live" id="cmtLive">
+        <div class="cmt-live-hd">🔍 Что режим прочекал и что упало</div>
+        <div class="conn-alerts" id="cmtAlerts"></div>
+        <div class="run-status" id="cmtRunStatus">окон нет — режим никто не запускал (кнопка выше или круглая на листе ①)</div>
+      </div>
+      </div><!-- /stage-grid: настройки | ядро с кнопкой | настройки, ниже — лента во всю ширину -->
+    </section>
+
+    <footer class="dash-muted small">
+      Второй канал не отменяет первый: списки и комменты — разные классы действий, и шкала риска
+      отличает их друг от друга (свой сенсор «комменты» — четвёртый слой лампочек, уже тут).
+      Лиды отсюда лежат отдельной полкой <code>viaComments</code> и в «живые, которым не писали»
+      на листе ⑤ и в <code>/list</code> бота не попадают, пока их не проверил TG.
+    </footer>
+  </main>
+
+  <!-- ============ МОДАЛКА ИСТОРИИ ============ -->
+  <div id="historyModal" class="hist-modal" hidden>
+    <div class="hist-backdrop" id="histBackdrop"></div>
+    <div class="hist-panel" role="dialog" aria-modal="true" aria-label="История">
+      <header class="hist-top">
+        <h2>📜 История</h2>
+        <div class="hist-tabs">
+          <button class="hist-tab is-on" data-tab="runs">Прогоны</button>
+          <button class="hist-tab" data-tab="accounts">Аккаунты</button>
+          <button class="hist-tab" data-tab="tgrev">Ревизии TG</button>
+          <button class="hist-tab" data-tab="paa">Автоанализ</button>
+        </div>
+        <button class="hist-close" id="histClose" title="Закрыть (Esc)">✕</button>
+      </header>
+      <div class="hist-body">
+        <aside class="hist-side">
+          <div id="histRunFilter" class="hist-filter">
+            <h4 id="hrQLabel">Поиск прогонов</h4>
+            <input id="hrQ" type="search" class="hist-input" placeholder="сид / причина прогона…" />
+            <div class="hist-dates">
+              <input id="hrDateFrom" type="date" class="hist-input" title="Фильтр по дате: оставить только прогоны/разборы, начатые или завершённые начиная с этой даты" />
+              <span class="hist-dash">—</span>
+              <input id="hrDateTo" type="date" class="hist-input" title="…и не позже этой даты (включительно)" />
+              <button type="button" id="hrDateClear" class="btn-small" title="Сбросить фильтр по датам">✕</button>
+            </div>
+          </div>
+          <div id="histAccFilter" class="hist-filter" hidden>
+            <h4>Фильтр аккаунтов</h4>
+            <div class="hist-niche" id="hfNiche" hidden></div>
+            <input id="hfQ" type="search" class="hist-input" placeholder="поиск: ник, имя, bio… (несколько слов — ранжирует по совпадению)" />
+            <div class="hist-tokens" id="hfTokens" hidden></div>
+            <div class="hist-range">
+              <input id="hfFolMin" type="number" class="hist-input" placeholder="сабы от" min="0" />
+              <input id="hfFolMax" type="number" class="hist-input" placeholder="до" min="0" />
+            </div>
+            <div class="hist-chips" id="hfTg" title="Цифра на чипе — сколько строк останется, если по нему нажать (с учётом поиска, сабов и остальных фильтров)">
+              <button data-tg="all" class="is-on">все</button>
+              <button data-tg="tg" title="В профиле реально найдена ссылка на Telegram (bio, контакты, сайт). Включает каналы, ботов и мёртвые юзы — для них есть свои чипы. Гадалки по нику — отдельный чип">с ТГ</button>
+              <button data-tg="user" title="Доказанно живой личный аккаунт: проверка t.me/web ответила «user» и вердикт не протух">реальные</button>
+              <button data-tg="guess" title="Ник смоделирован по нику Instagram — человек нигде в профиле Telegram не светил. Живая личка с таким именем не доказана: у него может не быть ТГ">гадалки</button>
+              <button data-tg="channel" title="Ссылка ведёт на канал или группу — личку туда не написать">каналы</button>
+              <button data-tg="bot" title="Ссылка ведёт на бота (_bot)">боты</button>
+              <button data-tg="none" title="Ссылку проверили — юзернейма не существует (или он давно мёртвый)">мёртвые</button>
+              <button data-tg="notg" title="Ни одной TG-ссылки в профиле не нашли">без ТГ</button>
+            </div>
+            <h4 class="hist-sub">Писал ли в Telegram</h4>
+            <div class="hist-chips" id="hfWrote" title="Отметку ставит страница ④ по списку диалогов твоих TG-аккаунтов: «писал» — диалог с этим лидом уже есть хоть на одном аккаунте, «не писал» — диалогов нет ни на одном, «не проверял» — снимок диалогов ещё не снимался (или мост был выключен). Тот же предикат читает /list рассылка в боте">
+              <button data-w="all" class="is-on">все</button>
+              <button data-w="wrote">✍️ писал</button>
+              <button data-w="clean">📭 не писал</button>
+              <button data-w="unknown">❔ не проверял</button>
+            </div>
+            <label class="hist-check"><input type="checkbox" id="hfFresh" /> только за 24 часа</label>
+            <h4 class="hist-sub">Квал: пол</h4>
+            <div class="hist-chips" id="hfGender" title="Пол считается по базе имён и родовым окончаниям в тексте профиля («похудела» — она, «похудел» — он); слова об аудитории («девушек», «женский») не учитываются. Instagram пол отдельно не отдаёт, поэтому без личных маркеров остаётся «не опознан»">
+              <button data-g="all" class="is-on">все</button>
+              <button data-g="f">👩 женский</button>
+              <button data-g="m">👨 мужской</button>
+              <button data-g="u">❔ не опознан</button>
+            </div>
+            <h4 class="hist-sub">Квал: статус в инсте</h4>
+            <div class="hist-chips" id="hfColor" title="Ровно та подсветка строки, которую расширение рисует в списках подписчиков/подписок">
+              <button data-c="all" class="is-on">все</button>
+              <button data-c="tgnew"><i class="dot c-tgnew"></i>новый с ТГ</button>
+              <button data-c="gold" title="Доказанно живой Telegram (✅ «живой аккаунт» из уведомлений), либо deep-scan/авторазбор нашёл личку"><i class="dot c-gold"></i>личка найдена</button>
+              <button data-c="sent" title="Профиль уже разобран автоанализом со второго меню (есть штамп paAt или завершённый джоб)"><i class="dot c-sent"></i>попал под авторазбор</button>
+              <button data-c="viewed"><i class="dot c-viewed"></i>просмотрено</button>
+              <button data-c="nofit"><i class="dot c-nofit"></i>неподходит</button>
+              <button data-c="fol"><i class="dot c-fol"></i>выжаты подписчики</button>
+              <button data-c="fsg"><i class="dot c-fsg"></i>выжаты подписки</button>
+              <button data-c="both"><i class="dot c-both"></i>выжат полностью</button>
+            </div>
+            <div class="hist-qual" id="hfQual" hidden></div>
+          </div>
+          <div id="histProofFilter" class="hist-filter" hidden>
+            <h4>Фильтр по вердикту TG</h4>
+            <select id="histProofSel" class="hist-input">
+              <option value="">все подряд</option>
+              <option value="real">только живые (✅)</option>
+              <option value="dead">только мёртвые (✖)</option>
+              <option value="unknown">не удалось проверить (❔)</option>
+              <option value="unchecked">не проверялись</option>
+              <option value="tg">с ссылкой TG</option>
+            </select>
+            <p class="dash-muted small">Работает внутри развёрнутого прогона «▸ кто» (ревизии) и в списке джобов автоанализа.</p>
+          </div>
+          <div id="histPaaFilter" class="hist-filter" hidden>
+            <h4>Статус разбора</h4>
+            <div class="hist-chips" id="hfPaaStatus" title="Оставить только джобы автоанализа с этим итогом: отправлено в TG / с ошибкой / пропущено / ещё в работе">
+              <button data-s="all" class="is-on">все</button>
+              <button data-s="sent">✅ отправлено</button>
+              <button data-s="failed">✖ ошибка</button>
+              <button data-s="skipped">❔ пропущено</button>
+              <button data-s="running">⏳ в работе</button>
+            </div>
+            <h4 class="hist-sub">Писал ли в Telegram</h4>
+            <div class="hist-chips" id="hfWrotePaa" title="Тот же фильтр, что и на вкладке «Аккаунты» (общее состояние): разборы кого уже трогали — «писал», чтобы не светить один и тот же ник с двух аккаунтов. Отметки приходят со страницы ④">
+              <button data-w="all" class="is-on">все</button>
+              <button data-w="wrote">✍️ писал</button>
+              <button data-w="clean">📭 не писал</button>
+              <button data-w="unknown">❔ не проверял</button>
+            </div>
+          </div>
+          <h4>Сортировка</h4>
+          <div id="histSortRuns" class="hist-sort">
+            <button data-sort="new" class="is-on">сначала свежие</button>
+            <button data-sort="found">по находкам ТГ</button>
+            <button data-sort="dur">по длительности</button>
+          </div>
+          <div id="histSortAcc" class="hist-sort" hidden>
+            <button data-sort="new" class="is-on">сначала свежие</button>
+            <button data-sort="old">сначала старые</button>
+            <button data-sort="subs">по подписчикам</button>
+            <button data-sort="name">по нику</button>
+            <button data-sort="tg">только с ТГ</button>
+          </div>
+          <div class="hist-side-info" id="histSideInfo"></div>
+          <button class="btn-small hist-clear" id="histClearRuns">Очистить историю прогонов</button>
+        </aside>
+        <div class="hist-main" id="histList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Квалификация (пол/цвет) — общий модуль с TG-ботом, обязателен ДО dashboard.js -->
+  <script src="qualify.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>
